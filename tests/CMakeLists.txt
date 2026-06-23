@@ -8,9 +8,9 @@ FetchContent_Declare(
   GIT_SHALLOW TRUE)
 FetchContent_MakeAvailable(googletest)
 
-add_executable(project_tests core_test.cpp)
-target_link_libraries(project_tests PRIVATE industry_starter::core GTest::gtest_main)
-configure_project_target(project_tests)
+add_executable(nebulakv_tests in_memory_key_value_store_test.cpp)
+target_link_libraries(nebulakv_tests PRIVATE NebulaKV::core GTest::gtest_main)
+configure_project_target(nebulakv_tests)
 
 include(GoogleTest)
-gtest_discover_tests(project_tests DISCOVERY_TIMEOUT 30)
+gtest_discover_tests(nebulakv_tests DISCOVERY_TIMEOUT 30)

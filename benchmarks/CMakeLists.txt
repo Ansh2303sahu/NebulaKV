@@ -9,7 +9,6 @@ FetchContent_Declare(
   GIT_SHALLOW TRUE)
 FetchContent_MakeAvailable(googlebenchmark)
 
-add_executable(project_benchmarks core_benchmark.cpp)
-target_link_libraries(
-  project_benchmarks PRIVATE industry_starter::core benchmark::benchmark_main)
-configure_project_target(project_benchmarks)
+add_executable(nebulakv_benchmarks key_value_store_benchmark.cpp)
+target_link_libraries(nebulakv_benchmarks PRIVATE NebulaKV::core benchmark::benchmark_main)
+configure_project_target(nebulakv_benchmarks)

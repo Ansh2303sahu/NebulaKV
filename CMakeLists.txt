@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 3.22)
 
 project(
-  industry_starter
-  VERSION 0.1.0
-  DESCRIPTION "Production-style C++20 project foundation"
+  NebulaKV
+  VERSION 0.2.0
+  DESCRIPTION "Distributed key-value database built in modern C++"
   LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -26,19 +26,22 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(ProjectOptions)
 include(Formatting)
 
-add_library(project_core src/core.cpp)
-add_library(industry_starter::core ALIAS project_core)
+find_package(Threads REQUIRED)
+
+add_library(nebulakv_core src/in_memory_key_value_store.cpp)
+add_library(NebulaKV::core ALIAS nebulakv_core)
 
 target_include_directories(
-  project_core
+  nebulakv_core
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
          $<INSTALL_INTERFACE:include>)
-target_compile_features(project_core PUBLIC cxx_std_20)
-configure_project_target(project_core)
+target_compile_features(nebulakv_core PUBLIC cxx_std_20)
+target_link_libraries(nebulakv_core PUBLIC Threads::Threads)
+configure_project_target(nebulakv_core)
 
-add_executable(project_cli app/main.cpp)
-target_link_libraries(project_cli PRIVATE industry_starter::core)
-configure_project_target(project_cli)
+add_executable(nebulakv_cli app/main.cpp)
+target_link_libraries(nebulakv_cli PRIVATE NebulaKV::core)
+configure_project_target(nebulakv_cli)
 
 include(CTest)
 if(BUILD_TESTING)

@@ -1,10 +1,22 @@
-#include "industry_starter/core.hpp"
+#include "nebulakv/in_memory_key_value_store.hpp"
 
-#include <array>
 #include <iostream>
+#include <string>
 
 int main() {
-  constexpr std::array values{1, 2, 3, 4, 5};
-  std::cout << "sum=" << industry_starter::sum(values) << '\n';
+  nebulakv::InMemoryKeyValueStore store;
+  store.put("project", "NebulaKV");
+  store.put("phase", "in-memory engine");
+
+  const auto project = store.get("project");
+  const auto phase = store.get("phase");
+
+  if (!project || !phase) {
+    std::cerr << "Failed to read the demonstration keys\n";
+    return 1;
+  }
+
+  std::cout << *project << ": " << *phase << '\n';
+  std::cout << "entries=" << store.size() << '\n';
   return 0;
 }
