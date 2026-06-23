@@ -1,6 +1,7 @@
 #pragma once
 
 #include "nebulakv/key_value_store.hpp"
+#include "nebulakv/storage_limits.hpp"
 
 #include <cstddef>
 #include <functional>
@@ -13,8 +14,8 @@ namespace nebulakv {
 
 class InMemoryKeyValueStore final : public KeyValueStore {
 public:
-  static constexpr std::size_t kMaxKeySize = 1024;
-  static constexpr std::size_t kMaxValueSize = 1024 * 1024;
+  static constexpr std::size_t kMaxKeySize = storage_limits::kMaxKeySize;
+  static constexpr std::size_t kMaxValueSize = storage_limits::kMaxValueSize;
 
   InMemoryKeyValueStore() = default;
   ~InMemoryKeyValueStore() override = default;
@@ -44,9 +45,6 @@ private:
 
   using Storage =
       std::unordered_map<std::string, std::string, TransparentStringHash, std::equal_to<>>;
-
-  static void validate_key(std::string_view key);
-  static void validate_value(std::string_view value);
 
   mutable std::shared_mutex mutex_;
   Storage entries_;

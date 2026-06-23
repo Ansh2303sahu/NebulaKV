@@ -1,7 +1,7 @@
 #include "nebulakv/in_memory_key_value_store.hpp"
+#include "nebulakv/validation.hpp"
 
 #include <mutex>
-#include <stdexcept>
 #include <utility>
 
 namespace nebulakv {
@@ -59,22 +59,6 @@ bool InMemoryKeyValueStore::exists(const std::string_view key) const {
 std::size_t InMemoryKeyValueStore::size() const {
   std::shared_lock lock{mutex_};
   return entries_.size();
-}
-
-void InMemoryKeyValueStore::validate_key(const std::string_view key) {
-  if (key.empty()) {
-    throw std::invalid_argument{"NebulaKV keys must not be empty"};
-  }
-
-  if (key.size() > kMaxKeySize) {
-    throw std::length_error{"NebulaKV key exceeds the maximum size"};
-  }
-}
-
-void InMemoryKeyValueStore::validate_value(const std::string_view value) {
-  if (value.size() > kMaxValueSize) {
-    throw std::length_error{"NebulaKV value exceeds the maximum size"};
-  }
 }
 
 } // namespace nebulakv

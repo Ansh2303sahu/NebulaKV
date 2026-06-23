@@ -8,8 +8,22 @@ FetchContent_Declare(
   GIT_SHALLOW TRUE)
 FetchContent_MakeAvailable(googletest)
 
-add_executable(nebulakv_tests in_memory_key_value_store_test.cpp)
+add_executable(nebulakv_crash_writer support/crash_writer.cpp)
+target_link_libraries(nebulakv_crash_writer PRIVATE NebulaKV::core)
+configure_project_target(nebulakv_crash_writer)
+
+add_executable(
+  nebulakv_tests
+  checksum_calculator_test.cpp
+  in_memory_key_value_store_test.cpp
+  persistent_key_value_store_test.cpp
+  recovery_manager_test.cpp
+  wal_writer_reader_test.cpp)
 target_link_libraries(nebulakv_tests PRIVATE NebulaKV::core GTest::gtest_main)
+target_compile_definitions(
+  nebulakv_tests
+  PRIVATE NEBULAKV_CRASH_WRITER_PATH="$<TARGET_FILE:nebulakv_crash_writer>")
+add_dependencies(nebulakv_tests nebulakv_crash_writer)
 configure_project_target(nebulakv_tests)
 
 include(GoogleTest)

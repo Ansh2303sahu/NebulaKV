@@ -2,8 +2,8 @@ cmake_minimum_required(VERSION 3.22)
 
 project(
   NebulaKV
-  VERSION 0.2.0
-  DESCRIPTION "Distributed key-value database built in modern C++"
+  VERSION 0.3.0
+  DESCRIPTION "Durable distributed key-value database built in modern C++"
   LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -28,7 +28,16 @@ include(Formatting)
 
 find_package(Threads REQUIRED)
 
-add_library(nebulakv_core src/in_memory_key_value_store.cpp)
+add_library(
+  nebulakv_core
+  src/checksum_calculator.cpp
+  src/in_memory_key_value_store.cpp
+  src/persistent_key_value_store.cpp
+  src/recovery_manager.cpp
+  src/validation.cpp
+  src/wal_format.cpp
+  src/wal_reader.cpp
+  src/wal_writer.cpp)
 add_library(NebulaKV::core ALIAS nebulakv_core)
 
 target_include_directories(

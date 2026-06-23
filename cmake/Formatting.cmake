@@ -8,7 +8,9 @@ file(
   "${PROJECT_SOURCE_DIR}/include/*.h"
   "${PROJECT_SOURCE_DIR}/include/*.hpp"
   "${PROJECT_SOURCE_DIR}/src/*.cpp"
-  "${PROJECT_SOURCE_DIR}/tests/*.cpp")
+  "${PROJECT_SOURCE_DIR}/src/*.hpp"
+  "${PROJECT_SOURCE_DIR}/tests/*.cpp"
+  "${PROJECT_SOURCE_DIR}/tests/*.hpp")
 
 find_program(
   CLANG_FORMAT_EXECUTABLE
