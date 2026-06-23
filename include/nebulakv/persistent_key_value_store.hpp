@@ -1,13 +1,14 @@
 #pragma once
 
 #include "nebulakv/durability_mode.hpp"
-#include "nebulakv/in_memory_key_value_store.hpp"
 #include "nebulakv/key_value_store.hpp"
+#include "nebulakv/memtable_set.hpp"
 #include "nebulakv/recovery_manager.hpp"
 #include "nebulakv/wal_writer.hpp"
 
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <memory>
 #include <mutex>
@@ -21,6 +22,7 @@ struct PersistentStoreOptions {
   std::filesystem::path wal_path;
   DurabilityMode durability_mode{DurabilityMode::Sync};
   std::chrono::milliseconds batch_flush_interval{100};
+  std::size_t memtable_max_bytes{64U * 1024U * 1024U};
   bool truncate_invalid_wal_tail{true};
   bool emit_recovery_diagnostics{true};
 };
@@ -43,12 +45,15 @@ public:
   void flush();
 
   [[nodiscard]] std::size_t size() const;
+  [[nodiscard]] std::uint64_t last_sequence_number() const noexcept;
+  [[nodiscard]] std::size_t immutable_memtable_count() const;
+  [[nodiscard]] std::size_t active_memtable_memory_usage() const;
   [[nodiscard]] const RecoveryReport& recovery_report() const noexcept;
   [[nodiscard]] DurabilityMode durability_mode() const noexcept;
 
 private:
   mutable std::mutex write_mutex_;
-  InMemoryKeyValueStore memory_store_;
+  MemTableSet memtables_;
   RecoveryReport recovery_report_;
   std::unique_ptr<WalWriter> wal_writer_;
 };

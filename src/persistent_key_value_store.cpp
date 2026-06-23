@@ -9,12 +9,13 @@
 
 namespace nebulakv {
 
-PersistentKeyValueStore::PersistentKeyValueStore(PersistentStoreOptions options) {
+PersistentKeyValueStore::PersistentKeyValueStore(PersistentStoreOptions options)
+    : memtables_{MemTableOptions{options.memtable_max_bytes}} {
   RecoveryOptions recovery_options;
   recovery_options.truncate_invalid_tail = options.truncate_invalid_wal_tail;
   recovery_options.diagnostics = options.emit_recovery_diagnostics ? &std::cerr : nullptr;
 
-  recovery_report_ = RecoveryManager::recover(options.wal_path, memory_store_, recovery_options);
+  recovery_report_ = RecoveryManager::recover(options.wal_path, memtables_, recovery_options);
   if (recovery_report_.issue && recovery_report_.issue->code == WalReadIssueCode::IoError) {
     throw std::runtime_error{"failed to read the write-ahead log during recovery"};
   }
@@ -36,27 +37,27 @@ void PersistentKeyValueStore::put(std::string key, std::string value) {
 
   std::lock_guard lock{write_mutex_};
   wal_writer_->append(WalRecord{OperationType::Put, key, value});
-  memory_store_.put(std::move(key), std::move(value));
+  memtables_.put(std::move(key), std::move(value));
 }
 
 std::optional<std::string> PersistentKeyValueStore::get(const std::string_view key) const {
-  return memory_store_.get(key);
+  return memtables_.get(key);
 }
 
 bool PersistentKeyValueStore::remove(const std::string_view key) {
   validate_key(key);
 
   std::lock_guard lock{write_mutex_};
-  if (!memory_store_.exists(key)) {
+  if (!memtables_.exists(key)) {
     return false;
   }
 
   wal_writer_->append(WalRecord{OperationType::Delete, std::string{key}, {}});
-  return memory_store_.remove(key);
+  return memtables_.remove(key);
 }
 
 bool PersistentKeyValueStore::exists(const std::string_view key) const {
-  return memory_store_.exists(key);
+  return memtables_.exists(key);
 }
 
 void PersistentKeyValueStore::flush() {
@@ -64,7 +65,19 @@ void PersistentKeyValueStore::flush() {
   wal_writer_->flush();
 }
 
-std::size_t PersistentKeyValueStore::size() const { return memory_store_.size(); }
+std::size_t PersistentKeyValueStore::size() const { return memtables_.size(); }
+
+std::uint64_t PersistentKeyValueStore::last_sequence_number() const noexcept {
+  return memtables_.last_sequence_number();
+}
+
+std::size_t PersistentKeyValueStore::immutable_memtable_count() const {
+  return memtables_.immutable_table_count();
+}
+
+std::size_t PersistentKeyValueStore::active_memtable_memory_usage() const {
+  return memtables_.active_memory_usage();
+}
 
 const RecoveryReport& PersistentKeyValueStore::recovery_report() const noexcept {
   return recovery_report_;

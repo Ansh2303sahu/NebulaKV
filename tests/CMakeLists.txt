@@ -16,6 +16,8 @@ add_executable(
   nebulakv_tests
   checksum_calculator_test.cpp
   in_memory_key_value_store_test.cpp
+  memtable_test.cpp
+  memtable_set_test.cpp
   persistent_key_value_store_test.cpp
   recovery_manager_test.cpp
   wal_writer_reader_test.cpp)

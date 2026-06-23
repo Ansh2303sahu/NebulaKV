@@ -1,6 +1,6 @@
 #include "nebulakv/recovery_manager.hpp"
 
-#include "nebulakv/in_memory_key_value_store.hpp"
+#include "nebulakv/key_value_store.hpp"
 #include "nebulakv/wal_record.hpp"
 
 #include <filesystem>
@@ -9,8 +9,7 @@
 namespace nebulakv {
 
 RecoveryReport RecoveryManager::recover(const std::filesystem::path& wal_path,
-                                        InMemoryKeyValueStore& destination,
-                                        const RecoveryOptions options) {
+                                        KeyValueStore& destination, const RecoveryOptions options) {
   RecoveryReport report;
   if (!std::filesystem::exists(wal_path)) {
     return report;

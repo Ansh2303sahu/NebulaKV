@@ -1,68 +1,26 @@
 # NebulaKV
 
-NebulaKV is a durable key-value database written in modern C++20. The current storage engine
-combines a thread-safe in-memory index with a checksummed write-ahead log so acknowledged writes
-can be recovered after a normal restart or abrupt process termination.
-
-## Storage guarantees
-
-Every persistent write follows this order:
-
-```text
-Validate request
-      |
-Append checksummed WAL record
-      |
-Apply configured durability policy
-      |
-Update the in-memory index
-      |
-Return success
-```
-
-A write is never exposed in memory before its log record has been appended. Persistent writes are
-serialized across the WAL and memory update, preserving the same operation order during live
-execution and recovery.
+NebulaKV is a modern C++20 key-value storage engine designed around durability, concurrent access,
+and an LSM-tree-oriented architecture. The current implementation combines a thread-safe in-memory
+API, a checksummed write-ahead log, crash recovery, sorted MemTables, tombstones, and immutable-table
+rotation.
 
 ## Current capabilities
 
 - `KeyValueStore` abstraction with `put`, `get`, `remove`, and `exists`
-- Thread-safe `InMemoryKeyValueStore` backed by `std::unordered_map`
-- `PersistentKeyValueStore` with automatic startup recovery
-- Shared locks for reads and exclusive locks for in-memory writes
-- Serialized persistent write path for deterministic WAL ordering
-- Binary WAL records with magic bytes, format version, operation, lengths, payload, and CRC-32
-- `Put` and `Delete` operation replay
-- Synchronous, periodic batch, and operating-system-buffered durability modes
-- Safe handling of incomplete records, malformed lengths, unsupported operations, and corruption
-- Byte-offset diagnostics for damaged records
-- Optional truncation of an invalid WAL tail before accepting new writes
+- Thread-safe hash-based reference store using `std::unordered_map` and `std::shared_mutex`
+- Sorted MemTable storage using `std::map`
+- Monotonically increasing sequence numbers
+- Tombstone-based deletion
+- Configurable MemTable memory threshold, defaulting to 64 MiB
+- Atomic active-table rotation with newest-first immutable-table lookup
+- Checksummed write-ahead log with `sync`, `batch`, and OS-buffered durability modes
+- Safe restart recovery, partial-tail handling, corruption detection, and repair controls
 - Empty-key validation, 1 KiB key limit, and 1 MiB value limit
-- Automated restart, abrupt-exit, corruption, concurrency, sanitizer, and benchmark coverage
+- 99 unit and integration tests, including concurrency, recovery, and corruption scenarios
 - GCC and Clang builds with warnings treated as errors
+- AddressSanitizer, UndefinedBehaviorSanitizer, and ThreadSanitizer presets
 - clang-format, clang-tidy, GoogleTest, Google Benchmark, and GitHub Actions
-
-## WAL record format
-
-```text
-+----------+---------+-----------+----------+------------+-----+-------+----------+
-| Magic(4) | Ver.(2) | Op.(1)    | Flags(1) | Key Len(4) | Key | Value | CRC32(4) |
-|          |         |           |          | Val Len(4) |     |       |          |
-+----------+---------+-----------+----------+------------+-----+-------+----------+
-```
-
-All integer fields use little-endian encoding. The CRC-32 covers the complete header and payload,
-excluding the checksum field itself.
-
-## Durability modes
-
-| Mode | Behaviour | Intended use |
-|---|---|---|
-| `sync` | Calls `fsync` after every appended record | Default; strongest acknowledged-write durability |
-| `batch` | Flushes dirty WAL data on a configurable interval | Higher throughput with a bounded durability window |
-| `none` | Relies on operating-system buffering | Development, benchmarks, or explicitly accepted risk |
-
-Calling `flush()` forces an `fsync` regardless of the configured mode.
 
 ## Prerequisites
 
@@ -73,8 +31,8 @@ sudo apt update
 sudo apt install -y build-essential clang clang-tidy clang-format cmake ninja-build git
 ```
 
-Required: CMake 3.22+, a C++20 compiler, Ninja, and Git. The first configure downloads pinned
-GoogleTest or Google Benchmark sources through CMake `FetchContent`.
+Required tools are CMake 3.22 or newer, Ninja, Git, and a C++20 compiler. The first configure fetches
+pinned GoogleTest or Google Benchmark sources through CMake `FetchContent`.
 
 ## Build and test
 
@@ -84,19 +42,11 @@ cmake --build --preset debug
 ctest --preset debug
 ```
 
-Run the durable command-line demonstration:
+Run the storage-engine demonstration:
 
 ```bash
 ./build/debug/nebulakv_cli
 ```
-
-Provide a custom WAL path:
-
-```bash
-./build/debug/nebulakv_cli /tmp/nebulakv-demo/database.wal
-```
-
-Run it twice to observe startup replay through the `recovered_records` field.
 
 ## Sanitizers
 
@@ -110,16 +60,39 @@ cmake --build --preset tsan
 ctest --preset tsan
 ```
 
-## Release and benchmarks
+## Release build
 
 ```bash
 cmake --preset release
 cmake --build --preset release
 ctest --preset release
+```
 
+## Benchmarks
+
+```bash
 cmake --preset benchmark
 cmake --build --preset benchmark
 ./build/benchmark/benchmarks/nebulakv_benchmarks
+```
+
+The benchmark executable reports three distinct layers:
+
+- Hash-store operations for the reference implementation
+- Raw sorted-MemTable operations
+- Full `MemTableSet` operations including sequencing and table coordination
+
+`MemTableSet` microbenchmarks disable automatic rotation and publish `immutable_tables` and
+`active_bytes` counters. This prevents rotation from being mixed into basic lookup and update
+measurements. Rotation and flush behaviour should be measured in dedicated storage-pipeline
+benchmarks.
+
+For more stable local results:
+
+```bash
+./build/benchmark/benchmarks/nebulakv_benchmarks \
+  --benchmark_repetitions=5 \
+  --benchmark_report_aggregates_only=true
 ```
 
 ## Formatting and static analysis
@@ -129,7 +102,7 @@ cmake --build --preset debug --target format
 cmake --build --preset debug --target format-check
 ```
 
-`clang-tidy` runs automatically on project targets in the debug preset.
+clang-tidy runs as part of configured development builds.
 
 ## Repository layout
 
@@ -140,14 +113,13 @@ cmake --build --preset debug --target format-check
 ├── benchmarks/key_value_store_benchmark.cpp
 ├── cmake/
 ├── include/nebulakv/
-│   ├── checksum_calculator.hpp
-│   ├── durability_mode.hpp
+│   ├── entry.hpp
 │   ├── in_memory_key_value_store.hpp
 │   ├── key_value_store.hpp
+│   ├── memtable.hpp
+│   ├── memtable_set.hpp
 │   ├── persistent_key_value_store.hpp
 │   ├── recovery_manager.hpp
-│   ├── storage_limits.hpp
-│   ├── validation.hpp
 │   ├── wal_reader.hpp
 │   ├── wal_record.hpp
 │   └── wal_writer.hpp
@@ -157,15 +129,28 @@ cmake --build --preset debug --target format-check
 └── CMakePresets.json
 ```
 
-## Recovery behaviour
+## Storage write path
 
-Recovery scans records sequentially and applies only fully validated operations. On an incomplete or
-corrupted record, it:
+```text
+Validate request
+      |
+Append checksummed WAL record
+      |
+Apply configured durability policy
+      |
+Assign sequence number
+      |
+Update active sorted MemTable
+      |
+Rotate to immutable state when the memory threshold is reached
+      |
+Return success
+```
 
-1. Stops at the first unsafe byte offset.
-2. Retains every previously validated operation.
-3. Reports a structured diagnostic containing the failure type and byte offset.
-4. Optionally truncates the invalid tail so new writes remain recoverable.
+## Recovery guarantees
 
-The automated abrupt-exit test writes 1,000 synchronously durable keys in a child process, exits
-without running destructors, reopens the database, and verifies every acknowledged value.
+- Acknowledged synchronous writes are replayed after restart.
+- Incomplete final records stop recovery safely.
+- Checksum mismatches are reported with their byte offset.
+- Valid records before a damaged tail remain recoverable.
+- WAL replay restores sequence ordering, updates, deletes, and tombstones.

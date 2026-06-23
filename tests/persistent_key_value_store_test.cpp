@@ -226,4 +226,46 @@ TEST(PersistentKeyValueStoreTest, RestoresAcknowledgedWritesAfterAbruptExit) {
   }
 }
 
+TEST(PersistentKeyValueStoreTest, ContinuesSequenceNumbersAfterRecovery) {
+  TemporaryDirectory directory;
+  const auto path = directory.file("database.wal");
+  {
+    PersistentKeyValueStore store{options_for(path)};
+    store.put("first", "one");
+    store.put("second", "two");
+    ASSERT_TRUE(store.remove("first"));
+    EXPECT_EQ(store.last_sequence_number(), 3U);
+  }
+
+  PersistentKeyValueStore recovered{options_for(path)};
+  EXPECT_EQ(recovered.last_sequence_number(), 3U);
+
+  recovered.put("third", "three");
+
+  EXPECT_EQ(recovered.last_sequence_number(), 4U);
+  EXPECT_EQ(recovered.get("third"), "three");
+}
+
+TEST(PersistentKeyValueStoreTest, RecoveryBuildsRotatedSortedMemTables) {
+  TemporaryDirectory directory;
+  const auto path = directory.file("database.wal");
+  auto options = options_for(path);
+  options.memtable_max_bytes = 1U;
+  {
+    PersistentKeyValueStore store{options};
+    store.put("charlie", "three");
+    store.put("alpha", "one");
+    store.put("bravo", "two");
+  }
+
+  PersistentKeyValueStore recovered{options};
+
+  EXPECT_EQ(recovered.get("alpha"), "one");
+  EXPECT_EQ(recovered.get("bravo"), "two");
+  EXPECT_EQ(recovered.get("charlie"), "three");
+  EXPECT_EQ(recovered.last_sequence_number(), 3U);
+  EXPECT_EQ(recovered.immutable_memtable_count(), 3U);
+  EXPECT_EQ(recovered.active_memtable_memory_usage(), 0U);
+}
+
 } // namespace

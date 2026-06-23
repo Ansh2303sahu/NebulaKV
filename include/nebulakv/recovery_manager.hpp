@@ -9,7 +9,7 @@
 
 namespace nebulakv {
 
-class InMemoryKeyValueStore;
+class KeyValueStore;
 
 struct RecoveryOptions {
   bool truncate_invalid_tail{true};
@@ -30,7 +30,7 @@ struct RecoveryReport {
 class RecoveryManager final {
 public:
   [[nodiscard]] static RecoveryReport recover(const std::filesystem::path& wal_path,
-                                              InMemoryKeyValueStore& destination,
+                                              KeyValueStore& destination,
                                               RecoveryOptions options = {});
 };
 
