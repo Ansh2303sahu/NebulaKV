@@ -9,8 +9,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
-#include <iterator>
 #include <limits>
+#include <memory>
 #include <span>
 #include <stdexcept>
 #include <string_view>
@@ -82,7 +82,10 @@ private:
 
 } // namespace
 
-SSTableReader::SSTableReader(std::filesystem::path path) : path_{std::move(path)} {
+SSTableReader::SSTableReader(std::filesystem::path path, std::shared_ptr<BlockCache> block_cache,
+                             std::shared_ptr<const BloomFilter> bloom_filter)
+    : path_{std::move(path)}, cache_table_id_{path_.lexically_normal().string()},
+      block_cache_{std::move(block_cache)}, bloom_filter_{std::move(bloom_filter)} {
   if (path_.empty()) {
     throw std::invalid_argument{"SSTable path must not be empty"};
   }
@@ -164,13 +167,21 @@ std::optional<Entry> SSTableReader::get(const std::string_view key) const {
     return std::nullopt;
   }
 
-  const DataBlock block = read_data_block(*candidate);
+  if (bloom_filter_) {
+    bloom_checks_.fetch_add(1U, std::memory_order_relaxed);
+    if (!bloom_filter_->may_contain(key)) {
+      bloom_negatives_.fetch_add(1U, std::memory_order_relaxed);
+      return std::nullopt;
+    }
+  }
+
+  const BlockCache::BlockPointer block = read_data_block(*candidate);
   const auto entry =
-      std::lower_bound(block.records.begin(), block.records.end(), key,
+      std::lower_bound(block->records.begin(), block->records.end(), key,
                        [](const DataBlock::Record& record, const std::string_view sought) {
                          return record.first < sought;
                        });
-  if (entry == block.records.end() || entry->first != key) {
+  if (entry == block->records.end() || entry->first != key) {
     return std::nullopt;
   }
   return entry->second;
@@ -183,9 +194,8 @@ MemTable::Snapshot SSTableReader::read_all() const {
   }
   result.reserve(static_cast<std::size_t>(metadata_.entry_count));
   for (const IndexEntry& entry : index_.entries) {
-    DataBlock block = read_data_block(entry);
-    result.insert(result.end(), std::make_move_iterator(block.records.begin()),
-                  std::make_move_iterator(block.records.end()));
+    const BlockCache::BlockPointer block = read_data_block(entry);
+    result.insert(result.end(), block->records.begin(), block->records.end());
   }
   if (result.size() != metadata_.entry_count) {
     throw SSTableCorruptionError{0, "SSTable entry count does not match its metadata"};
@@ -199,18 +209,47 @@ const IndexBlock& SSTableReader::index() const noexcept { return index_; }
 
 const SSTableFooter& SSTableReader::footer() const noexcept { return footer_; }
 
-DataBlock SSTableReader::read_data_block(const IndexEntry& index_entry) const {
+bool SSTableReader::uses_bloom_filter() const noexcept { return static_cast<bool>(bloom_filter_); }
+
+std::optional<BloomFilterStatistics> SSTableReader::bloom_filter_statistics() const noexcept {
+  if (!bloom_filter_) {
+    return std::nullopt;
+  }
+  return bloom_filter_->statistics();
+}
+
+SSTableLookupStatistics SSTableReader::lookup_statistics() const noexcept {
+  return SSTableLookupStatistics{bloom_checks_.load(std::memory_order_relaxed),
+                                 bloom_negatives_.load(std::memory_order_relaxed)};
+}
+
+void SSTableReader::reset_lookup_statistics() noexcept {
+  bloom_checks_.store(0U, std::memory_order_relaxed);
+  bloom_negatives_.store(0U, std::memory_order_relaxed);
+}
+
+BlockCache::BlockPointer SSTableReader::read_data_block(const IndexEntry& index_entry) const {
   if (index_entry.block_size > std::numeric_limits<std::size_t>::max()) {
     throw SSTableCorruptionError{index_entry.block_offset,
                                  "SSTable data block is too large for this process"};
   }
+  if (block_cache_) {
+    if (auto cached = block_cache_->get(cache_table_id_, index_entry.block_offset)) {
+      return cached;
+    }
+  }
+
   FileDescriptor descriptor{path_};
   const auto bytes = read_exact(descriptor.get(), index_entry.block_offset,
                                 static_cast<std::size_t>(index_entry.block_size));
-  DataBlock block = sstable_format::parse_data_block(bytes, index_entry.block_offset);
-  if (block.first_key() != index_entry.first_key || block.last_key() != index_entry.last_key) {
+  auto block = std::make_shared<DataBlock>(
+      sstable_format::parse_data_block(bytes, index_entry.block_offset));
+  if (block->first_key() != index_entry.first_key || block->last_key() != index_entry.last_key) {
     throw SSTableCorruptionError{index_entry.block_offset,
                                  "SSTable data block does not match its index range"};
+  }
+  if (block_cache_) {
+    block_cache_->put(cache_table_id_, index_entry.block_offset, block);
   }
   return block;
 }

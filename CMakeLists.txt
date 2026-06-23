@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.22)
 
 project(
   NebulaKV
-  VERSION 0.5.0
+  VERSION 0.6.0
   DESCRIPTION "Durable distributed key-value database built in modern C++"
   LANGUAGES CXX)
 
@@ -30,6 +30,8 @@ find_package(Threads REQUIRED)
 
 add_library(
   nebulakv_core
+  src/block_cache.cpp
+  src/bloom_filter.cpp
   src/checksum_calculator.cpp
   src/in_memory_key_value_store.cpp
   src/memtable.cpp

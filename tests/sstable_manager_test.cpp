@@ -3,6 +3,7 @@
 
 #include "test_support.hpp"
 
+#include <cstddef>
 #include <memory>
 #include <string>
 
@@ -18,6 +19,17 @@ std::shared_ptr<MemTable> immutable_table(const std::uint64_t generation, const 
     table->add_tombstone(key, entry.sequence_number);
   } else {
     table->put(key, entry.value, entry.sequence_number);
+  }
+  table->freeze();
+  return table;
+}
+
+std::shared_ptr<MemTable> immutable_table_with_even_keys(const std::uint64_t generation,
+                                                         const std::size_t count) {
+  auto table = std::make_shared<MemTable>(generation);
+  for (std::size_t index = 0; index < count; ++index) {
+    const std::string key = "key-" + std::to_string(index * 2U + 1000U);
+    table->put(key, std::string(96U, 'v'), index + 1U);
   }
   table->freeze();
   return table;
@@ -81,6 +93,71 @@ TEST(SSTableManagerTest, RemovesAbandonedTemporaryFilesOnStartup) {
 
   EXPECT_EQ(manager.table_count(), 0U);
   EXPECT_FALSE(std::filesystem::exists(temporary));
+}
+
+TEST(SSTableManagerTest, BloomFilterSkipsMostMissingKeysWithoutBlockReads) {
+  test::TemporaryDirectory directory;
+  SSTableManager manager{{directory.path(), 1024U, 1024U * 1024U, 0.01}};
+  static_cast<void>(manager.flush(*immutable_table_with_even_keys(1U, 500U)));
+  manager.clear_block_cache();
+  manager.reset_read_statistics();
+
+  for (std::size_t index = 0; index < 100U; ++index) {
+    const std::string key = "key-" + std::to_string(index * 2U + 1001U);
+    EXPECT_FALSE(manager.get(key).has_value());
+  }
+
+  const BloomFilterAggregateStatistics bloom = manager.bloom_filter_statistics();
+  const BlockCacheStatistics cache = manager.block_cache_statistics();
+  EXPECT_EQ(bloom.filter_count, 1U);
+  EXPECT_EQ(bloom.inserted_keys, 500U);
+  EXPECT_GT(bloom.checks, 80U);
+  EXPECT_GT(bloom.negative_results, 80U);
+  EXPECT_LT(cache.misses, 10U);
+}
+
+TEST(SSTableManagerTest, RepeatedReadsUseSharedBlockCache) {
+  test::TemporaryDirectory directory;
+  SSTableManager manager{{directory.path(), 1024U, 1024U * 1024U, 0.01}};
+  static_cast<void>(manager.flush(*immutable_table_with_even_keys(1U, 100U)));
+  manager.clear_block_cache();
+  manager.reset_read_statistics();
+
+  ASSERT_TRUE(manager.get("key-1100").has_value());
+  ASSERT_TRUE(manager.get("key-1100").has_value());
+
+  const BlockCacheStatistics cache = manager.block_cache_statistics();
+  EXPECT_EQ(cache.misses, 1U);
+  EXPECT_EQ(cache.hits, 1U);
+  EXPECT_EQ(cache.hit_ratio(), 0.5);
+}
+
+TEST(SSTableManagerTest, CacheEvictsBlocksWhenCapacityIsExceeded) {
+  test::TemporaryDirectory directory;
+  SSTableManager manager{{directory.path(), 1024U, 2500U, 0.01}};
+  static_cast<void>(manager.flush(*immutable_table_with_even_keys(1U, 200U)));
+  manager.clear_block_cache();
+  manager.reset_read_statistics();
+
+  ASSERT_TRUE(manager.get("key-1000").has_value());
+  ASSERT_TRUE(manager.get("key-1200").has_value());
+  ASSERT_TRUE(manager.get("key-1398").has_value());
+
+  EXPECT_GT(manager.block_cache_statistics().evictions, 0U);
+}
+
+TEST(SSTableManagerTest, ReportsBloomFilterMemoryUsageAfterRestart) {
+  test::TemporaryDirectory directory;
+  {
+    SSTableManager manager{{directory.path(), 256U}};
+    static_cast<void>(manager.flush(*immutable_table_with_even_keys(1U, 100U)));
+  }
+
+  SSTableManager reopened{{directory.path(), 256U}};
+  const BloomFilterAggregateStatistics statistics = reopened.bloom_filter_statistics();
+  EXPECT_EQ(statistics.filter_count, 1U);
+  EXPECT_EQ(statistics.inserted_keys, 100U);
+  EXPECT_GT(statistics.memory_bytes, 0U);
 }
 
 } // namespace

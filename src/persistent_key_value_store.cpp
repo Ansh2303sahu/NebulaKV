@@ -82,8 +82,9 @@ private:
 } // namespace
 
 PersistentKeyValueStore::PersistentKeyValueStore(PersistentStoreOptions options)
-    : sstables_{SSTableManagerOptions{resolve_sstable_directory(options),
-                                      options.sstable_data_block_bytes}} {
+    : sstables_{SSTableManagerOptions{
+          resolve_sstable_directory(options), options.sstable_data_block_bytes,
+          options.block_cache_capacity_bytes, options.bloom_false_positive_rate}} {
   if (options.wal_path.empty()) {
     throw std::invalid_argument{"WAL path must not be empty"};
   }
@@ -193,6 +194,18 @@ std::size_t PersistentKeyValueStore::sstable_count() const { return sstables_.ta
 std::vector<SSTableMetadata> PersistentKeyValueStore::sstable_metadata() const {
   return sstables_.metadata();
 }
+
+BlockCacheStatistics PersistentKeyValueStore::block_cache_statistics() const {
+  return sstables_.block_cache_statistics();
+}
+
+BloomFilterAggregateStatistics PersistentKeyValueStore::bloom_filter_statistics() const {
+  return sstables_.bloom_filter_statistics();
+}
+
+void PersistentKeyValueStore::clear_block_cache() { sstables_.clear_block_cache(); }
+
+void PersistentKeyValueStore::reset_read_statistics() { sstables_.reset_read_statistics(); }
 
 const std::filesystem::path& PersistentKeyValueStore::sstable_directory() const noexcept {
   return sstables_.directory();

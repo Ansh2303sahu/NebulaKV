@@ -28,6 +28,8 @@ struct PersistentStoreOptions {
   std::chrono::milliseconds batch_flush_interval{100};
   std::size_t memtable_max_bytes{64U * 1024U * 1024U};
   std::size_t sstable_data_block_bytes{32U * 1024U};
+  std::size_t block_cache_capacity_bytes{64U * 1024U * 1024U};
+  double bloom_false_positive_rate{0.01};
   bool truncate_invalid_wal_tail{true};
   bool emit_recovery_diagnostics{true};
 };
@@ -56,6 +58,10 @@ public:
   [[nodiscard]] std::size_t active_memtable_memory_usage() const;
   [[nodiscard]] std::size_t sstable_count() const;
   [[nodiscard]] std::vector<SSTableMetadata> sstable_metadata() const;
+  [[nodiscard]] BlockCacheStatistics block_cache_statistics() const;
+  [[nodiscard]] BloomFilterAggregateStatistics bloom_filter_statistics() const;
+  void clear_block_cache();
+  void reset_read_statistics();
   [[nodiscard]] const std::filesystem::path& sstable_directory() const noexcept;
   [[nodiscard]] const RecoveryReport& recovery_report() const noexcept;
   [[nodiscard]] DurabilityMode durability_mode() const noexcept;

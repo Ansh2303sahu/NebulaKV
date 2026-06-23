@@ -14,6 +14,8 @@ configure_project_target(nebulakv_crash_writer)
 
 add_executable(
   nebulakv_tests
+  block_cache_test.cpp
+  bloom_filter_test.cpp
   checksum_calculator_test.cpp
   in_memory_key_value_store_test.cpp
   memtable_test.cpp

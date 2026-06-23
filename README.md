@@ -1,110 +1,31 @@
 # NebulaKV
 
-NebulaKV is a modern C++20 key-value storage engine built around an LSM-tree architecture. It
-combines concurrent in-memory access, checksummed write-ahead logging, sorted MemTables, immutable
-rotation, persistent SSTables, indexed point reads, tombstones, and restart recovery.
+NebulaKV is a modern C++20 key-value storage engine designed around durability, concurrent access,
+and an LSM-tree-oriented architecture. It combines a checksummed write-ahead log, crash recovery,
+sorted MemTables, immutable SSTables, probabilistic negative lookup acceleration, and a shared
+thread-safe block cache.
 
 ## Current capabilities
 
 - `KeyValueStore` abstraction with `put`, `get`, `remove`, and `exists`
 - Thread-safe hash-based reference store using `std::unordered_map` and `std::shared_mutex`
-- Sorted MemTables using `std::map`
-- Monotonically increasing 64-bit sequence numbers
-- Tombstone-based deletion
-- Configurable MemTable memory threshold, defaulting to 64 MiB
-- Atomic active-to-immutable MemTable rotation
+- Sorted MemTables using `std::map`, monotonic sequence numbers, and tombstone deletion
+- Configurable MemTable rotation with active and immutable read coordination
 - Checksummed write-ahead log with `sync`, `batch`, and OS-buffered durability modes
-- Safe WAL recovery with incomplete-tail handling and byte-offset diagnostics
-- Immutable sorted-string-table files with versioned headers and footers
-- Target-sized data blocks with independent CRC-32 checksums
-- A checksummed index containing block offsets and key ranges
-- Binary search inside the selected data block
-- Atomic SSTable publication through temporary file, `fsync`, rename, and directory `fsync`
-- Automatic immutable-table flushing and explicit storage checkpoints
-- Restart loading from SSTables with sequence continuation
-- Tombstone and newest-sequence resolution across multiple SSTables
-- 1 KiB key limit and 1 MiB value limit
-- 125 unit and integration tests
-- GCC and Clang warnings-as-errors builds
+- Safe restart recovery, partial-tail handling, corruption detection, and repair controls
+- Versioned SSTables with checksummed data blocks, index blocks, headers, and footers
+- Indexed point lookups that avoid full-file scans
+- Atomic SSTable publication through temporary files, `fsync`, rename, and directory sync
+- Explicit checkpoints that persist active memory state before safely resetting the WAL
+- Custom Bloom filters with configurable false-positive rate and zero false negatives
+- Shared byte-bounded LRU data-block cache using `std::unordered_map`, `std::list`, and `std::mutex`
+- Cache hit, miss, eviction, memory, and hit-ratio metrics
+- Bloom-filter count, inserted-key, memory, check, and negative-result metrics
+- Empty-key validation, 1 KiB key limit, and 1 MiB value limit
+- 143 unit and integration tests covering concurrency, recovery, corruption, caching, and filtering
+- GCC and Clang builds with warnings treated as errors
 - AddressSanitizer, UndefinedBehaviorSanitizer, and ThreadSanitizer presets
 - clang-format, clang-tidy, GoogleTest, Google Benchmark, and GitHub Actions
-
-## Storage architecture
-
-```text
-Client write
-    |
-Validate key and value
-    |
-Append checksummed WAL record
-    |
-Apply durability policy
-    |
-Assign sequence number
-    |
-Update active sorted MemTable
-    |
-Rotate when the configured memory threshold is reached
-    |
-Write immutable MemTable to a temporary SSTable
-    |
-fsync file -> atomic rename -> fsync directory
-    |
-Publish the SSTable reader and release the immutable MemTable
-```
-
-Point reads use the following order:
-
-```text
-Active MemTable
-    |
-Immutable MemTables, newest first
-    |
-SSTables
-    |
-Compare matching sequence numbers and preserve tombstones
-```
-
-## SSTable file layout
-
-```text
-+-------------------------------+
-| Versioned header + CRC-32     |
-+-------------------------------+
-| Data block 0 + CRC-32         |
-+-------------------------------+
-| Data block 1 + CRC-32         |
-+-------------------------------+
-| ...                           |
-+-------------------------------+
-| Key-range index + CRC-32      |
-+-------------------------------+
-| Footer with offsets + CRC-32  |
-+-------------------------------+
-```
-
-Each data record stores:
-
-```text
-key length | value length | sequence number | tombstone flag | key | value
-```
-
-The index stores the first and last key, byte offset, and encoded size of every data block. A point
-lookup binary-searches the index, reads only the candidate block, validates its checksum, and then
-binary-searches the records in that block.
-
-## Checkpoints and WAL lifecycle
-
-`checkpoint()` performs the following while serializing writes:
-
-1. Flush the WAL according to the configured durability policy.
-2. Freeze the active MemTable.
-3. Persist every immutable MemTable as an SSTable.
-4. Publish the new SSTable readers.
-5. Reset the WAL only after all current state is durable on disk.
-
-Automatic MemTable rotation uses the same durable publication path. When a rotation leaves no
-unpersisted active entries, NebulaKV safely resets the covered WAL prefix by truncating the file.
 
 ## Prerequisites
 
@@ -132,7 +53,7 @@ Run the storage-engine demonstration:
 ./build/debug/nebulakv_cli
 ```
 
-Create a durable checkpoint during the demonstration:
+Create a durable checkpoint and exercise SSTable reads:
 
 ```bash
 ./build/debug/nebulakv_cli data/nebulakv.wal --checkpoint
@@ -166,20 +87,23 @@ cmake --build --preset benchmark
 ./build/benchmark/benchmarks/nebulakv_benchmarks
 ```
 
-The benchmark executable reports:
+SSTable benchmarks separate three read paths:
 
-- Hash-store reads and updates
-- Raw sorted-MemTable reads and updates
-- Full `MemTableSet` reads and updates
-- Indexed SSTable point reads at 1,000, 10,000, and 100,000 keys
+- Uncached indexed reads that perform file access, block checksum validation, and decoding
+- Warm-cache reads that reuse an immutable decoded data block
+- Bloom-filter negative reads that avoid block I/O for definitely absent keys
 
-For stable local measurements:
+Run the storage benchmarks with repeated aggregate reporting:
 
 ```bash
 ./build/benchmark/benchmarks/nebulakv_benchmarks \
+  --benchmark_filter=sstable \
   --benchmark_repetitions=5 \
   --benchmark_report_aggregates_only=true
 ```
+
+The benchmark output includes block count, cache hit ratio, cached-block count, Bloom negative count,
+and block-read count.
 
 ## Formatting and static analysis
 
@@ -197,19 +121,19 @@ clang-tidy runs as part of configured development builds.
 ├── .github/workflows/ci.yml
 ├── app/main.cpp
 ├── benchmarks/
+│   ├── key_value_store_benchmark.cpp
+│   └── sstable_benchmark.cpp
 ├── cmake/
 ├── include/nebulakv/
-│   ├── data_block.hpp
+│   ├── block_cache.hpp
+│   ├── bloom_filter.hpp
 │   ├── entry.hpp
-│   ├── index_block.hpp
+│   ├── key_value_store.hpp
 │   ├── memtable.hpp
 │   ├── memtable_set.hpp
 │   ├── persistent_key_value_store.hpp
 │   ├── recovery_manager.hpp
-│   ├── sstable_error.hpp
-│   ├── sstable_footer.hpp
 │   ├── sstable_manager.hpp
-│   ├── sstable_metadata.hpp
 │   ├── sstable_reader.hpp
 │   ├── sstable_writer.hpp
 │   ├── wal_reader.hpp
@@ -221,14 +145,58 @@ clang-tidy runs as part of configured development builds.
 └── CMakePresets.json
 ```
 
-## Corruption behaviour
+## Read path
 
-- Header, data-block, index, and footer checksums are validated independently.
-- Invalid offsets and lengths are rejected before allocating record buffers.
-- Truncated files and malformed metadata produce `SSTableCorruptionError`.
-- Corruption errors include the byte offset associated with the failed structure.
-- A corrupted SSTable prevents startup rather than silently returning stale or incomplete data.
-- Abandoned `.sst.tmp` files are removed during startup discovery.
+```text
+Validate key
+      |
+Check active MemTable
+      |
+Check immutable MemTables newest-first
+      |
+Select candidate SSTables by key range
+      |
+Bloom filter says definitely absent? ---- yes ---> skip table
+      |
+      no
+      |
+Search in-memory block index
+      |
+Check shared LRU block cache
+      |
+Cache miss: pread + checksum + decode
+      |
+Binary-search decoded data block
+      |
+Return newest sequence or tombstone
+```
 
-Startup currently discovers validated `.sst` files from the configured storage directory. A durable
-manifest and atomic table-set metadata update are introduced with the compaction subsystem.
+## Write and checkpoint path
+
+```text
+Validate request
+      |
+Append checksummed WAL record
+      |
+Apply configured durability policy
+      |
+Assign sequence number
+      |
+Update active sorted MemTable
+      |
+Rotate to immutable state at memory threshold
+      |
+Write checksummed SSTable and publish atomically
+      |
+Checkpoint resets WAL only after persisted state is synchronized
+```
+
+## Correctness guarantees
+
+- Acknowledged synchronous writes are replayed after restart.
+- Incomplete final WAL records stop recovery safely.
+- WAL and SSTable checksum mismatches report their byte location.
+- Tombstones and sequence numbers survive restart.
+- Bloom filters never classify an inserted key as definitely absent.
+- Cached data blocks are immutable and shared safely between concurrent readers.
+- Cache eviction follows least-recently-used ordering under a configurable byte limit.
