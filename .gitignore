@@ -7,3 +7,6 @@ compile_commands.json
 *.profdata
 /data/
 *.wal
+
+*.sst
+*.sst.tmp

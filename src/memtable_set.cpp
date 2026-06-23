@@ -2,6 +2,7 @@
 
 #include "nebulakv/validation.hpp"
 
+#include <algorithm>
 #include <limits>
 #include <stdexcept>
 #include <utility>
@@ -9,7 +10,10 @@
 namespace nebulakv {
 
 MemTableSet::MemTableSet(const MemTableOptions options)
-    : max_memory_bytes_{options.max_memory_bytes}, active_{std::make_shared<MemTable>(0)} {
+    : max_memory_bytes_{options.max_memory_bytes},
+      active_{std::make_shared<MemTable>(options.initial_generation)},
+      next_generation_{options.initial_generation + 1U},
+      last_sequence_number_{options.initial_sequence_number} {
   if (max_memory_bytes_ == 0U) {
     throw std::invalid_argument{"MemTable memory limit must be greater than zero"};
   }
@@ -59,6 +63,21 @@ bool MemTableSet::remove(const std::string_view key) {
   return true;
 }
 
+void MemTableSet::add_tombstone(std::string key) {
+  validate_key(key);
+
+  std::lock_guard write_lock{write_mutex_};
+  const bool was_live = latest_state_without_validation(key) == MemTable::LookupState::Value;
+  const std::uint64_t sequence_number = next_sequence_number();
+  const auto table = active_table();
+  table->add_tombstone(std::move(key), sequence_number);
+  if (was_live) {
+    live_key_count_.fetch_sub(1U, std::memory_order_relaxed);
+  }
+  last_sequence_number_.store(sequence_number, std::memory_order_release);
+  rotate_if_required(table);
+}
+
 bool MemTableSet::exists(const std::string_view key) const {
   validate_key(key);
   return latest_state_without_validation(key) == MemTable::LookupState::Value;
@@ -100,6 +119,18 @@ std::optional<std::shared_ptr<const MemTable>> MemTableSet::rotate_active() {
 std::vector<std::shared_ptr<const MemTable>> MemTableSet::immutable_tables() const {
   std::shared_lock lock{state_mutex_};
   return {immutable_tables_.begin(), immutable_tables_.end()};
+}
+
+bool MemTableSet::discard_immutable(const std::uint64_t generation) {
+  std::unique_lock lock{state_mutex_};
+  const auto table = std::find_if(
+      immutable_tables_.begin(), immutable_tables_.end(),
+      [generation](const auto& candidate) { return candidate->generation() == generation; });
+  if (table == immutable_tables_.end()) {
+    return false;
+  }
+  immutable_tables_.erase(table);
+  return true;
 }
 
 std::optional<Entry>

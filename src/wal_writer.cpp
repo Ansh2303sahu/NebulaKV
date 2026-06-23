@@ -128,6 +128,21 @@ void WalWriter::flush() {
   flush_locked();
 }
 
+void WalWriter::reset() {
+  std::lock_guard lock{mutex_};
+  throw_if_background_flush_failed_locked();
+  flush_locked();
+  while (::ftruncate(file_descriptor_, 0) != 0) {
+    if (errno == EINTR) {
+      continue;
+    }
+    throw std::system_error{errno, std::generic_category(), "failed to truncate WAL file"};
+  }
+  sync_file(file_descriptor_);
+  bytes_appended_ = 0;
+  dirty_ = false;
+}
+
 std::uint64_t WalWriter::bytes_appended() const {
   std::lock_guard lock{mutex_};
   return bytes_appended_;

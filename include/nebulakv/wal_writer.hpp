@@ -31,6 +31,7 @@ public:
 
   void append(const WalRecord& record);
   void flush();
+  void reset();
 
   [[nodiscard]] std::uint64_t bytes_appended() const;
   [[nodiscard]] DurabilityMode durability_mode() const noexcept;

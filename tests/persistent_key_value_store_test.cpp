@@ -1,5 +1,6 @@
 #include "nebulakv/durability_mode.hpp"
 #include "nebulakv/persistent_key_value_store.hpp"
+#include "nebulakv/sstable_error.hpp"
 #include "test_support.hpp"
 
 #include <chrono>
@@ -246,7 +247,7 @@ TEST(PersistentKeyValueStoreTest, ContinuesSequenceNumbersAfterRecovery) {
   EXPECT_EQ(recovered.get("third"), "three");
 }
 
-TEST(PersistentKeyValueStoreTest, RecoveryBuildsRotatedSortedMemTables) {
+TEST(PersistentKeyValueStoreTest, AutomaticRotationPersistsSortedMemTables) {
   TemporaryDirectory directory;
   const auto path = directory.file("database.wal");
   auto options = options_for(path);
@@ -264,8 +265,140 @@ TEST(PersistentKeyValueStoreTest, RecoveryBuildsRotatedSortedMemTables) {
   EXPECT_EQ(recovered.get("bravo"), "two");
   EXPECT_EQ(recovered.get("charlie"), "three");
   EXPECT_EQ(recovered.last_sequence_number(), 3U);
-  EXPECT_EQ(recovered.immutable_memtable_count(), 3U);
+  EXPECT_EQ(recovered.recovery_report().records_applied, 0U);
+  EXPECT_EQ(recovered.immutable_memtable_count(), 0U);
+  EXPECT_EQ(recovered.sstable_count(), 3U);
   EXPECT_EQ(recovered.active_memtable_memory_usage(), 0U);
+}
+
+TEST(PersistentKeyValueStoreTest, CheckpointPersistsStateAndResetsWal) {
+  TemporaryDirectory directory;
+  const auto path = directory.file("checkpoint.wal");
+  auto options = options_for(path);
+  options.sstable_data_block_bytes = 128U;
+  {
+    PersistentKeyValueStore store{options};
+    store.put("first", "one");
+    store.put("second", "two");
+    ASSERT_TRUE(store.remove("first"));
+
+    store.checkpoint();
+
+    EXPECT_EQ(std::filesystem::file_size(path), 0U);
+    EXPECT_EQ(store.sstable_count(), 1U);
+    EXPECT_EQ(store.immutable_memtable_count(), 0U);
+    EXPECT_FALSE(store.exists("first"));
+    EXPECT_EQ(store.get("second"), "two");
+  }
+
+  PersistentKeyValueStore recovered{options};
+  EXPECT_EQ(recovered.recovery_report().records_applied, 0U);
+  EXPECT_FALSE(recovered.exists("first"));
+  EXPECT_EQ(recovered.get("second"), "two");
+  EXPECT_EQ(recovered.size(), 1U);
+}
+
+TEST(PersistentKeyValueStoreTest, AutomaticRotationFlushesImmutableTableToDisk) {
+  TemporaryDirectory directory;
+  const auto path = directory.file("rotation.wal");
+  auto options = options_for(path);
+  options.memtable_max_bytes = 1U;
+  options.sstable_data_block_bytes = 128U;
+
+  PersistentKeyValueStore store{options};
+  store.put("key", "value");
+
+  EXPECT_EQ(store.immutable_memtable_count(), 0U);
+  EXPECT_EQ(store.sstable_count(), 1U);
+  EXPECT_EQ(store.get("key"), "value");
+}
+
+TEST(PersistentKeyValueStoreTest, RestartContinuesSequenceAboveSSTables) {
+  TemporaryDirectory directory;
+  const auto path = directory.file("sequence-sstable.wal");
+  auto options = options_for(path);
+  {
+    PersistentKeyValueStore store{options};
+    store.put("first", "one");
+    store.put("second", "two");
+    store.checkpoint();
+    EXPECT_EQ(store.last_sequence_number(), 2U);
+  }
+
+  PersistentKeyValueStore recovered{options};
+  EXPECT_EQ(recovered.last_sequence_number(), 2U);
+  recovered.put("third", "three");
+  EXPECT_EQ(recovered.last_sequence_number(), 3U);
+}
+
+TEST(PersistentKeyValueStoreTest, WalReplayOverridesOlderSSTableValue) {
+  TemporaryDirectory directory;
+  const auto path = directory.file("overlay.wal");
+  auto options = options_for(path);
+  {
+    PersistentKeyValueStore store{options};
+    store.put("key", "persisted");
+    store.checkpoint();
+    store.put("key", "wal-newer");
+  }
+
+  PersistentKeyValueStore recovered{options};
+  EXPECT_EQ(recovered.get("key"), "wal-newer");
+  EXPECT_EQ(recovered.size(), 1U);
+}
+
+TEST(PersistentKeyValueStoreTest, TombstoneInSSTableHidesOlderValueAfterRestart) {
+  TemporaryDirectory directory;
+  const auto path = directory.file("tombstone-sstable.wal");
+  auto options = options_for(path);
+  {
+    PersistentKeyValueStore store{options};
+    store.put("key", "value");
+    store.checkpoint();
+    ASSERT_TRUE(store.remove("key"));
+    store.checkpoint();
+    EXPECT_EQ(store.sstable_count(), 2U);
+  }
+
+  PersistentKeyValueStore recovered{options};
+  EXPECT_FALSE(recovered.exists("key"));
+  EXPECT_EQ(recovered.size(), 0U);
+}
+
+TEST(PersistentKeyValueStoreTest, CorruptedSSTableFailsStartupClearly) {
+  TemporaryDirectory directory;
+  const auto path = directory.file("corrupt-sstable.wal");
+  auto options = options_for(path);
+  std::filesystem::path table_path;
+  {
+    PersistentKeyValueStore store{options};
+    store.put("key", "value");
+    store.checkpoint();
+    ASSERT_EQ(store.sstable_metadata().size(), 1U);
+    table_path = store.sstable_metadata().front().path;
+  }
+
+  const auto size = std::filesystem::file_size(table_path);
+  std::filesystem::resize_file(table_path, size - 4U);
+
+  EXPECT_THROW(PersistentKeyValueStore recovered{options}, nebulakv::SSTableCorruptionError);
+}
+
+TEST(PersistentKeyValueStoreTest, CheckpointSupportsMultipleDataBlocks) {
+  TemporaryDirectory directory;
+  const auto path = directory.file("multi-block.wal");
+  auto options = options_for(path);
+  options.sstable_data_block_bytes = 96U;
+
+  PersistentKeyValueStore store{options};
+  for (std::size_t index = 0; index < 50U; ++index) {
+    store.put("key-" + std::to_string(1000U + index), "value-" + std::to_string(index));
+  }
+  store.checkpoint();
+
+  ASSERT_EQ(store.sstable_metadata().size(), 1U);
+  EXPECT_GT(store.sstable_metadata().front().block_count, 1U);
+  EXPECT_EQ(store.get("key-1025"), "value-25");
 }
 
 } // namespace

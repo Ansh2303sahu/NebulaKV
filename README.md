@@ -1,26 +1,110 @@
 # NebulaKV
 
-NebulaKV is a modern C++20 key-value storage engine designed around durability, concurrent access,
-and an LSM-tree-oriented architecture. The current implementation combines a thread-safe in-memory
-API, a checksummed write-ahead log, crash recovery, sorted MemTables, tombstones, and immutable-table
-rotation.
+NebulaKV is a modern C++20 key-value storage engine built around an LSM-tree architecture. It
+combines concurrent in-memory access, checksummed write-ahead logging, sorted MemTables, immutable
+rotation, persistent SSTables, indexed point reads, tombstones, and restart recovery.
 
 ## Current capabilities
 
 - `KeyValueStore` abstraction with `put`, `get`, `remove`, and `exists`
 - Thread-safe hash-based reference store using `std::unordered_map` and `std::shared_mutex`
-- Sorted MemTable storage using `std::map`
-- Monotonically increasing sequence numbers
+- Sorted MemTables using `std::map`
+- Monotonically increasing 64-bit sequence numbers
 - Tombstone-based deletion
 - Configurable MemTable memory threshold, defaulting to 64 MiB
-- Atomic active-table rotation with newest-first immutable-table lookup
+- Atomic active-to-immutable MemTable rotation
 - Checksummed write-ahead log with `sync`, `batch`, and OS-buffered durability modes
-- Safe restart recovery, partial-tail handling, corruption detection, and repair controls
-- Empty-key validation, 1 KiB key limit, and 1 MiB value limit
-- 99 unit and integration tests, including concurrency, recovery, and corruption scenarios
-- GCC and Clang builds with warnings treated as errors
+- Safe WAL recovery with incomplete-tail handling and byte-offset diagnostics
+- Immutable sorted-string-table files with versioned headers and footers
+- Target-sized data blocks with independent CRC-32 checksums
+- A checksummed index containing block offsets and key ranges
+- Binary search inside the selected data block
+- Atomic SSTable publication through temporary file, `fsync`, rename, and directory `fsync`
+- Automatic immutable-table flushing and explicit storage checkpoints
+- Restart loading from SSTables with sequence continuation
+- Tombstone and newest-sequence resolution across multiple SSTables
+- 1 KiB key limit and 1 MiB value limit
+- 125 unit and integration tests
+- GCC and Clang warnings-as-errors builds
 - AddressSanitizer, UndefinedBehaviorSanitizer, and ThreadSanitizer presets
 - clang-format, clang-tidy, GoogleTest, Google Benchmark, and GitHub Actions
+
+## Storage architecture
+
+```text
+Client write
+    |
+Validate key and value
+    |
+Append checksummed WAL record
+    |
+Apply durability policy
+    |
+Assign sequence number
+    |
+Update active sorted MemTable
+    |
+Rotate when the configured memory threshold is reached
+    |
+Write immutable MemTable to a temporary SSTable
+    |
+fsync file -> atomic rename -> fsync directory
+    |
+Publish the SSTable reader and release the immutable MemTable
+```
+
+Point reads use the following order:
+
+```text
+Active MemTable
+    |
+Immutable MemTables, newest first
+    |
+SSTables
+    |
+Compare matching sequence numbers and preserve tombstones
+```
+
+## SSTable file layout
+
+```text
++-------------------------------+
+| Versioned header + CRC-32     |
++-------------------------------+
+| Data block 0 + CRC-32         |
++-------------------------------+
+| Data block 1 + CRC-32         |
++-------------------------------+
+| ...                           |
++-------------------------------+
+| Key-range index + CRC-32      |
++-------------------------------+
+| Footer with offsets + CRC-32  |
++-------------------------------+
+```
+
+Each data record stores:
+
+```text
+key length | value length | sequence number | tombstone flag | key | value
+```
+
+The index stores the first and last key, byte offset, and encoded size of every data block. A point
+lookup binary-searches the index, reads only the candidate block, validates its checksum, and then
+binary-searches the records in that block.
+
+## Checkpoints and WAL lifecycle
+
+`checkpoint()` performs the following while serializing writes:
+
+1. Flush the WAL according to the configured durability policy.
+2. Freeze the active MemTable.
+3. Persist every immutable MemTable as an SSTable.
+4. Publish the new SSTable readers.
+5. Reset the WAL only after all current state is durable on disk.
+
+Automatic MemTable rotation uses the same durable publication path. When a rotation leaves no
+unpersisted active entries, NebulaKV safely resets the covered WAL prefix by truncating the file.
 
 ## Prerequisites
 
@@ -31,7 +115,7 @@ sudo apt update
 sudo apt install -y build-essential clang clang-tidy clang-format cmake ninja-build git
 ```
 
-Required tools are CMake 3.22 or newer, Ninja, Git, and a C++20 compiler. The first configure fetches
+CMake 3.22 or newer, Ninja, Git, and a C++20 compiler are required. The first configure fetches
 pinned GoogleTest or Google Benchmark sources through CMake `FetchContent`.
 
 ## Build and test
@@ -46,6 +130,12 @@ Run the storage-engine demonstration:
 
 ```bash
 ./build/debug/nebulakv_cli
+```
+
+Create a durable checkpoint during the demonstration:
+
+```bash
+./build/debug/nebulakv_cli data/nebulakv.wal --checkpoint
 ```
 
 ## Sanitizers
@@ -76,18 +166,14 @@ cmake --build --preset benchmark
 ./build/benchmark/benchmarks/nebulakv_benchmarks
 ```
 
-The benchmark executable reports three distinct layers:
+The benchmark executable reports:
 
-- Hash-store operations for the reference implementation
-- Raw sorted-MemTable operations
-- Full `MemTableSet` operations including sequencing and table coordination
+- Hash-store reads and updates
+- Raw sorted-MemTable reads and updates
+- Full `MemTableSet` reads and updates
+- Indexed SSTable point reads at 1,000, 10,000, and 100,000 keys
 
-`MemTableSet` microbenchmarks disable automatic rotation and publish `immutable_tables` and
-`active_bytes` counters. This prevents rotation from being mixed into basic lookup and update
-measurements. Rotation and flush behaviour should be measured in dedicated storage-pipeline
-benchmarks.
-
-For more stable local results:
+For stable local measurements:
 
 ```bash
 ./build/benchmark/benchmarks/nebulakv_benchmarks \
@@ -110,16 +196,22 @@ clang-tidy runs as part of configured development builds.
 .
 ├── .github/workflows/ci.yml
 ├── app/main.cpp
-├── benchmarks/key_value_store_benchmark.cpp
+├── benchmarks/
 ├── cmake/
 ├── include/nebulakv/
+│   ├── data_block.hpp
 │   ├── entry.hpp
-│   ├── in_memory_key_value_store.hpp
-│   ├── key_value_store.hpp
+│   ├── index_block.hpp
 │   ├── memtable.hpp
 │   ├── memtable_set.hpp
 │   ├── persistent_key_value_store.hpp
 │   ├── recovery_manager.hpp
+│   ├── sstable_error.hpp
+│   ├── sstable_footer.hpp
+│   ├── sstable_manager.hpp
+│   ├── sstable_metadata.hpp
+│   ├── sstable_reader.hpp
+│   ├── sstable_writer.hpp
 │   ├── wal_reader.hpp
 │   ├── wal_record.hpp
 │   └── wal_writer.hpp
@@ -129,28 +221,14 @@ clang-tidy runs as part of configured development builds.
 └── CMakePresets.json
 ```
 
-## Storage write path
+## Corruption behaviour
 
-```text
-Validate request
-      |
-Append checksummed WAL record
-      |
-Apply configured durability policy
-      |
-Assign sequence number
-      |
-Update active sorted MemTable
-      |
-Rotate to immutable state when the memory threshold is reached
-      |
-Return success
-```
+- Header, data-block, index, and footer checksums are validated independently.
+- Invalid offsets and lengths are rejected before allocating record buffers.
+- Truncated files and malformed metadata produce `SSTableCorruptionError`.
+- Corruption errors include the byte offset associated with the failed structure.
+- A corrupted SSTable prevents startup rather than silently returning stale or incomplete data.
+- Abandoned `.sst.tmp` files are removed during startup discovery.
 
-## Recovery guarantees
-
-- Acknowledged synchronous writes are replayed after restart.
-- Incomplete final records stop recovery safely.
-- Checksum mismatches are reported with their byte offset.
-- Valid records before a damaged tail remain recoverable.
-- WAL replay restores sequence ordering, updates, deletes, and tombstones.
+Startup currently discovers validated `.sst` files from the configured storage directory. A durable
+manifest and atomic table-set metadata update are introduced with the compaction subsystem.

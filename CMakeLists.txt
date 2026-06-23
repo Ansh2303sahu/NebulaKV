@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.22)
 
 project(
   NebulaKV
-  VERSION 0.4.0
+  VERSION 0.5.0
   DESCRIPTION "Durable distributed key-value database built in modern C++"
   LANGUAGES CXX)
 
@@ -36,6 +36,10 @@ add_library(
   src/memtable_set.cpp
   src/persistent_key_value_store.cpp
   src/recovery_manager.cpp
+  src/sstable_format.cpp
+  src/sstable_manager.cpp
+  src/sstable_reader.cpp
+  src/sstable_writer.cpp
   src/validation.cpp
   src/wal_format.cpp
   src/wal_reader.cpp

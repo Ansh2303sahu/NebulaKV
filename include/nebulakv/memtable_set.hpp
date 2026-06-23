@@ -21,6 +21,8 @@ namespace nebulakv {
 
 struct MemTableOptions {
   std::size_t max_memory_bytes{64U * 1024U * 1024U};
+  std::uint64_t initial_sequence_number{0};
+  std::uint64_t initial_generation{0};
 };
 
 class MemTableSet final : public KeyValueStore {
@@ -39,6 +41,7 @@ public:
   void put(std::string key, std::string value) override;
   [[nodiscard]] std::optional<std::string> get(std::string_view key) const override;
   bool remove(std::string_view key) override;
+  void add_tombstone(std::string key);
   [[nodiscard]] bool exists(std::string_view key) const override;
 
   [[nodiscard]] std::optional<Entry> latest_entry(std::string_view key) const;
@@ -52,6 +55,7 @@ public:
 
   [[nodiscard]] std::optional<std::shared_ptr<const MemTable>> rotate_active();
   [[nodiscard]] std::vector<std::shared_ptr<const MemTable>> immutable_tables() const;
+  bool discard_immutable(std::uint64_t generation);
 
 private:
   [[nodiscard]] std::optional<Entry> latest_entry_without_validation(std::string_view key) const;

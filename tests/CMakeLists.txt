@@ -20,6 +20,8 @@ add_executable(
   memtable_set_test.cpp
   persistent_key_value_store_test.cpp
   recovery_manager_test.cpp
+  sstable_manager_test.cpp
+  sstable_writer_reader_test.cpp
   wal_writer_reader_test.cpp)
 target_link_libraries(nebulakv_tests PRIVATE NebulaKV::core GTest::gtest_main)
 target_compile_definitions(
