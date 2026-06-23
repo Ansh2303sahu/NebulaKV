@@ -26,18 +26,22 @@ namespace {
 
 class FileDescriptor final {
 public:
-  explicit FileDescriptor(const std::filesystem::path& path)
-      : value_{::open(path.c_str(), O_RDONLY | O_CLOEXEC)} {
-    if (value_ < 0) {
-      throw std::system_error{errno, std::generic_category(), "failed to open SSTable file"};
+  explicit FileDescriptor(const int value) noexcept : value_{value} {}
+
+  ~FileDescriptor() {
+    if (value_ >= 0) {
+      static_cast<void>(::close(value_));
     }
   }
-
-  ~FileDescriptor() { ::close(value_); }
   FileDescriptor(const FileDescriptor&) = delete;
   FileDescriptor& operator=(const FileDescriptor&) = delete;
 
   [[nodiscard]] int get() const noexcept { return value_; }
+  [[nodiscard]] int release() noexcept {
+    const int value = value_;
+    value_ = -1;
+    return value;
+  }
 
 private:
   int value_{-1};
@@ -96,7 +100,10 @@ SSTableReader::SSTableReader(std::filesystem::path path, std::shared_ptr<BlockCa
     throw SSTableCorruptionError{0, "SSTable file is too small"};
   }
 
-  FileDescriptor descriptor{path_};
+  FileDescriptor descriptor{::open(path_.c_str(), O_RDONLY | O_CLOEXEC)};
+  if (descriptor.get() < 0) {
+    throw std::system_error{errno, std::generic_category(), "failed to open SSTable file"};
+  }
   const auto header_bytes = read_exact(descriptor.get(), 0, sstable_format::kHeaderSize);
   const sstable_format::Header header = sstable_format::parse_header(header_bytes, 0);
 
@@ -150,6 +157,13 @@ SSTableReader::SSTableReader(std::filesystem::path path, std::shared_ptr<BlockCa
   metadata_.max_sequence_number = header.max_sequence_number;
   metadata_.smallest_key = index_.entries.front().first_key;
   metadata_.largest_key = index_.entries.back().last_key;
+  descriptor_ = descriptor.release();
+}
+
+SSTableReader::~SSTableReader() {
+  if (descriptor_ >= 0) {
+    static_cast<void>(::close(descriptor_));
+  }
 }
 
 std::optional<Entry> SSTableReader::get(const std::string_view key) const {
@@ -239,8 +253,7 @@ BlockCache::BlockPointer SSTableReader::read_data_block(const IndexEntry& index_
     }
   }
 
-  FileDescriptor descriptor{path_};
-  const auto bytes = read_exact(descriptor.get(), index_entry.block_offset,
+  const auto bytes = read_exact(descriptor_, index_entry.block_offset,
                                 static_cast<std::size_t>(index_entry.block_size));
   auto block = std::make_shared<DataBlock>(
       sstable_format::parse_data_block(bytes, index_entry.block_offset));

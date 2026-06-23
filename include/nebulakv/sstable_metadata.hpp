@@ -1,5 +1,7 @@
 #pragma once
 
+#include "nebulakv/sstable_level.hpp"
+
 #include <cstdint>
 #include <filesystem>
 #include <string>
@@ -15,6 +17,7 @@ struct SSTableMetadata {
   std::uint64_t max_sequence_number{0};
   std::string smallest_key;
   std::string largest_key;
+  SSTableLevel level{SSTableLevel::Level0};
 };
 
 } // namespace nebulakv

@@ -401,4 +401,90 @@ TEST(PersistentKeyValueStoreTest, CheckpointSupportsMultipleDataBlocks) {
   EXPECT_EQ(store.get("key-1025"), "value-25");
 }
 
+TEST(PersistentKeyValueStoreTest, AutomaticallyCompactsLevelZeroTables) {
+  TemporaryDirectory directory;
+  const auto path = directory.file("automatic-compaction.wal");
+  auto options = options_for(path);
+  options.memtable_max_bytes = 1U;
+  options.level0_compaction_trigger = 4U;
+  options.level0_compaction_max_tables = 4U;
+
+  PersistentKeyValueStore store{options};
+  store.put("a", "one");
+  store.put("b", "two");
+  store.put("c", "three");
+  store.put("d", "four");
+
+  EXPECT_EQ(store.level0_sstable_count(), 0U);
+  EXPECT_EQ(store.level1_sstable_count(), 1U);
+  EXPECT_EQ(store.size(), 4U);
+  EXPECT_EQ(store.get("a"), "one");
+  EXPECT_EQ(store.compaction_statistics().runs, 1U);
+}
+
+TEST(PersistentKeyValueStoreTest, ManualCompactionPersistsAcrossRestart) {
+  TemporaryDirectory directory;
+  const auto path = directory.file("manual-compaction.wal");
+  auto options = options_for(path);
+  options.memtable_max_bytes = 1U;
+  options.enable_automatic_compaction = false;
+  {
+    PersistentKeyValueStore store{options};
+    store.put("a", "one");
+    store.put("b", "two");
+    store.put("c", "three");
+    EXPECT_EQ(store.level0_sstable_count(), 3U);
+
+    const nebulakv::CompactionResult result = store.compact();
+    EXPECT_TRUE(result.performed);
+    EXPECT_EQ(result.input_tables, 3U);
+    EXPECT_EQ(store.level0_sstable_count(), 0U);
+    EXPECT_EQ(store.level1_sstable_count(), 1U);
+  }
+
+  PersistentKeyValueStore reopened{options};
+  EXPECT_EQ(reopened.level1_sstable_count(), 1U);
+  EXPECT_EQ(reopened.get("a"), "one");
+  EXPECT_EQ(reopened.get("b"), "two");
+  EXPECT_EQ(reopened.get("c"), "three");
+}
+
+TEST(PersistentKeyValueStoreTest, CompactionRetiresDeletedKeyPermanently) {
+  TemporaryDirectory directory;
+  const auto path = directory.file("tombstone-compaction.wal");
+  auto options = options_for(path);
+  options.memtable_max_bytes = 1U;
+  options.enable_automatic_compaction = false;
+  {
+    PersistentKeyValueStore store{options};
+    store.put("key", "value");
+    ASSERT_TRUE(store.remove("key"));
+    const nebulakv::CompactionResult result = store.compact();
+
+    EXPECT_EQ(result.tombstones_dropped, 1U);
+    EXPECT_EQ(store.sstable_count(), 0U);
+    EXPECT_FALSE(store.exists("key"));
+  }
+
+  PersistentKeyValueStore reopened{options};
+  EXPECT_FALSE(reopened.exists("key"));
+  EXPECT_EQ(reopened.size(), 0U);
+}
+
+TEST(PersistentKeyValueStoreTest, ExposesManifestAndLevelMetadata) {
+  TemporaryDirectory directory;
+  const auto path = directory.file("manifest-metadata.wal");
+  auto options = options_for(path);
+  options.memtable_max_bytes = 1U;
+  options.enable_automatic_compaction = false;
+
+  PersistentKeyValueStore store{options};
+  store.put("key", "value");
+
+  EXPECT_TRUE(std::filesystem::exists(store.current_path()));
+  EXPECT_TRUE(std::filesystem::exists(store.active_manifest_path()));
+  ASSERT_EQ(store.sstable_metadata().size(), 1U);
+  EXPECT_EQ(store.sstable_metadata().front().level, nebulakv::SSTableLevel::Level0);
+}
+
 } // namespace

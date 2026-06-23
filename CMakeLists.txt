@@ -2,8 +2,8 @@ cmake_minimum_required(VERSION 3.22)
 
 project(
   NebulaKV
-  VERSION 0.6.0
-  DESCRIPTION "Durable distributed key-value database built in modern C++"
+  VERSION 0.7.0
+  DESCRIPTION "Durable LSM-tree key-value storage engine built in modern C++"
   LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -34,6 +34,7 @@ add_library(
   src/bloom_filter.cpp
   src/checksum_calculator.cpp
   src/in_memory_key_value_store.cpp
+  src/manifest.cpp
   src/memtable.cpp
   src/memtable_set.cpp
   src/persistent_key_value_store.cpp

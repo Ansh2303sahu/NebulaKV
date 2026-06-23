@@ -84,7 +84,9 @@ private:
 PersistentKeyValueStore::PersistentKeyValueStore(PersistentStoreOptions options)
     : sstables_{SSTableManagerOptions{
           resolve_sstable_directory(options), options.sstable_data_block_bytes,
-          options.block_cache_capacity_bytes, options.bloom_false_positive_rate}} {
+          options.block_cache_capacity_bytes, options.bloom_false_positive_rate,
+          options.level0_compaction_trigger, options.level0_compaction_max_tables}},
+      automatic_compaction_enabled_{options.enable_automatic_compaction} {
   if (options.wal_path.empty()) {
     throw std::invalid_argument{"WAL path must not be empty"};
   }
@@ -127,6 +129,7 @@ void PersistentKeyValueStore::put(std::string key, std::string value) {
     live_key_count_.fetch_add(1U, std::memory_order_relaxed);
   }
   flush_immutable_memtables_locked();
+  compact_if_required_locked();
   reset_wal_if_fully_persisted_locked();
 }
 
@@ -151,6 +154,7 @@ bool PersistentKeyValueStore::remove(const std::string_view key) {
   memtables_->add_tombstone(std::string{key});
   live_key_count_.fetch_sub(1U, std::memory_order_relaxed);
   flush_immutable_memtables_locked();
+  compact_if_required_locked();
   reset_wal_if_fully_persisted_locked();
   return true;
 }
@@ -170,7 +174,18 @@ void PersistentKeyValueStore::checkpoint() {
   wal_writer_->flush();
   static_cast<void>(memtables_->rotate_active());
   flush_immutable_memtables_locked();
+  compact_if_required_locked();
   wal_writer_->reset();
+}
+
+CompactionResult PersistentKeyValueStore::compact() {
+  std::lock_guard lock{write_mutex_};
+  wal_writer_->flush();
+  static_cast<void>(memtables_->rotate_active());
+  flush_immutable_memtables_locked();
+  CompactionResult result = sstables_.compact_level0(true);
+  reset_wal_if_fully_persisted_locked();
+  return result;
 }
 
 std::size_t PersistentKeyValueStore::size() const noexcept {
@@ -191,6 +206,14 @@ std::size_t PersistentKeyValueStore::active_memtable_memory_usage() const {
 
 std::size_t PersistentKeyValueStore::sstable_count() const { return sstables_.table_count(); }
 
+std::size_t PersistentKeyValueStore::level0_sstable_count() const {
+  return sstables_.level_table_count(SSTableLevel::Level0);
+}
+
+std::size_t PersistentKeyValueStore::level1_sstable_count() const {
+  return sstables_.level_table_count(SSTableLevel::Level1);
+}
+
 std::vector<SSTableMetadata> PersistentKeyValueStore::sstable_metadata() const {
   return sstables_.metadata();
 }
@@ -203,12 +226,24 @@ BloomFilterAggregateStatistics PersistentKeyValueStore::bloom_filter_statistics(
   return sstables_.bloom_filter_statistics();
 }
 
+CompactionStatistics PersistentKeyValueStore::compaction_statistics() const {
+  return sstables_.compaction_statistics();
+}
+
 void PersistentKeyValueStore::clear_block_cache() { sstables_.clear_block_cache(); }
 
 void PersistentKeyValueStore::reset_read_statistics() { sstables_.reset_read_statistics(); }
 
 const std::filesystem::path& PersistentKeyValueStore::sstable_directory() const noexcept {
   return sstables_.directory();
+}
+
+const std::filesystem::path& PersistentKeyValueStore::current_path() const noexcept {
+  return sstables_.current_path();
+}
+
+std::filesystem::path PersistentKeyValueStore::active_manifest_path() const {
+  return sstables_.active_manifest_path();
 }
 
 const RecoveryReport& PersistentKeyValueStore::recovery_report() const noexcept {
@@ -243,6 +278,18 @@ void PersistentKeyValueStore::flush_immutable_memtables_locked() {
 void PersistentKeyValueStore::reset_wal_if_fully_persisted_locked() {
   if (memtables_->active_entry_count() == 0U && memtables_->immutable_table_count() == 0U) {
     wal_writer_->reset();
+  }
+}
+
+void PersistentKeyValueStore::compact_if_required_locked() {
+  if (!automatic_compaction_enabled_) {
+    return;
+  }
+  while (sstables_.needs_compaction()) {
+    const CompactionResult result = sstables_.compact_if_needed();
+    if (!result.performed) {
+      break;
+    }
   }
 }
 

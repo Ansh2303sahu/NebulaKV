@@ -28,6 +28,7 @@ class SSTableReader final {
 public:
   explicit SSTableReader(std::filesystem::path path, std::shared_ptr<BlockCache> block_cache = {},
                          std::shared_ptr<const BloomFilter> bloom_filter = {});
+  ~SSTableReader();
 
   [[nodiscard]] std::optional<Entry> get(std::string_view key) const;
   [[nodiscard]] MemTable::Snapshot read_all() const;
@@ -43,6 +44,7 @@ private:
   [[nodiscard]] BlockCache::BlockPointer read_data_block(const IndexEntry& index_entry) const;
 
   std::filesystem::path path_;
+  int descriptor_{-1};
   std::string cache_table_id_;
   SSTableMetadata metadata_;
   IndexBlock index_;
