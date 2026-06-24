@@ -20,4 +20,4 @@ struct SSTableMetadata {
   SSTableLevel level{SSTableLevel::Level0};
 };
 
-} // namespace nebulakv
+}  // namespace nebulakv

@@ -2,8 +2,8 @@ cmake_minimum_required(VERSION 3.22)
 
 project(
   NebulaKV
-  VERSION 0.7.0
-  DESCRIPTION "Durable LSM-tree key-value storage engine built in modern C++"
+  VERSION 0.8.0
+  DESCRIPTION "Durable networked LSM-tree key-value database built in modern C++"
   LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -16,10 +16,20 @@ option(ENABLE_UBSAN "Enable UndefinedBehaviorSanitizer" OFF)
 option(ENABLE_TSAN "Enable ThreadSanitizer" OFF)
 option(ENABLE_CLANG_TIDY "Run clang-tidy while compiling project targets" OFF)
 option(ENABLE_BENCHMARKS "Build Google Benchmark targets" OFF)
+option(ENABLE_GRPC "Build the gRPC server and client" OFF)
+option(ENABLE_GRPC_INTEGRATION_TESTS "Build in-process gRPC integration tests" ON)
 option(WARNINGS_AS_ERRORS "Treat compiler warnings as errors" ON)
 
 if(ENABLE_ASAN AND ENABLE_TSAN)
   message(FATAL_ERROR "AddressSanitizer and ThreadSanitizer cannot be enabled together")
+endif()
+
+if(ENABLE_GRPC_INTEGRATION_TESTS AND NOT ENABLE_GRPC)
+  set(ENABLE_GRPC_INTEGRATION_TESTS OFF)
+endif()
+
+if(ENABLE_GRPC AND ENABLE_TSAN AND NOT ENABLE_GRPC_INTEGRATION_TESTS)
+  message(STATUS "gRPC integration tests are disabled for ThreadSanitizer; server and client targets remain enabled")
 endif()
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
@@ -57,9 +67,103 @@ target_compile_features(nebulakv_core PUBLIC cxx_std_20)
 target_link_libraries(nebulakv_core PUBLIC Threads::Threads)
 configure_project_target(nebulakv_core)
 
-add_executable(nebulakv_cli app/main.cpp)
-target_link_libraries(nebulakv_cli PRIVATE NebulaKV::core)
-configure_project_target(nebulakv_cli)
+add_executable(nebulakv_storage_tool app/main.cpp)
+set_target_properties(nebulakv_storage_tool PROPERTIES OUTPUT_NAME "nebulakv-storage")
+target_link_libraries(nebulakv_storage_tool PRIVATE NebulaKV::core)
+configure_project_target(nebulakv_storage_tool)
+
+add_library(
+  nebulakv_service_runtime
+  src/network/bounded_executor.cpp
+  src/network/request_processor.cpp)
+add_library(NebulaKV::service_runtime ALIAS nebulakv_service_runtime)
+target_include_directories(
+  nebulakv_service_runtime
+  PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+         $<INSTALL_INTERFACE:include>)
+target_compile_features(nebulakv_service_runtime PUBLIC cxx_std_20)
+target_link_libraries(nebulakv_service_runtime PUBLIC NebulaKV::core)
+configure_project_target(nebulakv_service_runtime)
+
+if(ENABLE_GRPC)
+  find_package(Protobuf REQUIRED)
+  find_package(gRPC CONFIG REQUIRED)
+
+  if(TARGET protobuf::protoc)
+    set(NEBULAKV_PROTOC $<TARGET_FILE:protobuf::protoc>)
+  elseif(Protobuf_PROTOC_EXECUTABLE)
+    set(NEBULAKV_PROTOC "${Protobuf_PROTOC_EXECUTABLE}")
+  else()
+    message(FATAL_ERROR "Protocol Buffers compiler was not found")
+  endif()
+
+  if(NOT TARGET gRPC::grpc_cpp_plugin)
+    message(FATAL_ERROR "gRPC C++ code-generation plugin was not found")
+  endif()
+
+  set(NEBULAKV_PROTO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/proto")
+  set(NEBULAKV_PROTO_FILE
+      "${NEBULAKV_PROTO_ROOT}/nebulakv/v1/key_value_service.proto")
+  set(NEBULAKV_GENERATED_ROOT "${CMAKE_CURRENT_BINARY_DIR}/generated")
+  set(NEBULAKV_GENERATED_DIR "${NEBULAKV_GENERATED_ROOT}/nebulakv/v1")
+  set(NEBULAKV_PROTO_SOURCES
+      "${NEBULAKV_GENERATED_DIR}/key_value_service.pb.cc"
+      "${NEBULAKV_GENERATED_DIR}/key_value_service.grpc.pb.cc")
+  set(NEBULAKV_PROTO_HEADERS
+      "${NEBULAKV_GENERATED_DIR}/key_value_service.pb.h"
+      "${NEBULAKV_GENERATED_DIR}/key_value_service.grpc.pb.h")
+
+  add_custom_command(
+    OUTPUT ${NEBULAKV_PROTO_SOURCES} ${NEBULAKV_PROTO_HEADERS}
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${NEBULAKV_GENERATED_DIR}"
+    COMMAND ${NEBULAKV_PROTOC}
+    ARGS --proto_path=${NEBULAKV_PROTO_ROOT}
+         --cpp_out=${NEBULAKV_GENERATED_ROOT}
+         --grpc_out=${NEBULAKV_GENERATED_ROOT}
+         --plugin=protoc-gen-grpc=$<TARGET_FILE:gRPC::grpc_cpp_plugin>
+         "${NEBULAKV_PROTO_FILE}"
+    DEPENDS "${NEBULAKV_PROTO_FILE}" gRPC::grpc_cpp_plugin
+    COMMENT "Generating NebulaKV Protocol Buffers and gRPC sources"
+    VERBATIM)
+
+  add_library(nebulakv_rpc ${NEBULAKV_PROTO_SOURCES} ${NEBULAKV_PROTO_HEADERS})
+  add_library(NebulaKV::rpc ALIAS nebulakv_rpc)
+  target_include_directories(nebulakv_rpc PUBLIC "${NEBULAKV_GENERATED_ROOT}")
+  target_compile_features(nebulakv_rpc PUBLIC cxx_std_20)
+  if(TARGET protobuf::libprotobuf)
+    target_link_libraries(nebulakv_rpc PUBLIC protobuf::libprotobuf)
+  else()
+    target_include_directories(nebulakv_rpc PUBLIC ${Protobuf_INCLUDE_DIRS})
+    target_link_libraries(nebulakv_rpc PUBLIC ${Protobuf_LIBRARIES})
+  endif()
+  target_link_libraries(nebulakv_rpc PUBLIC gRPC::grpc++)
+
+  add_library(
+    nebulakv_network
+    src/network/grpc_client.cpp
+    src/network/grpc_server.cpp
+    src/network/grpc_service.cpp)
+  add_library(NebulaKV::network ALIAS nebulakv_network)
+  target_include_directories(
+    nebulakv_network
+    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+           $<INSTALL_INTERFACE:include>)
+  target_compile_features(nebulakv_network PUBLIC cxx_std_20)
+  target_link_libraries(
+    nebulakv_network
+    PUBLIC NebulaKV::service_runtime NebulaKV::rpc gRPC::grpc++)
+  configure_project_target(nebulakv_network)
+
+  add_executable(nebulakv_server server/main.cpp)
+  set_target_properties(nebulakv_server PROPERTIES OUTPUT_NAME "nebulakv-server")
+  target_link_libraries(nebulakv_server PRIVATE NebulaKV::network)
+  configure_project_target(nebulakv_server)
+
+  add_executable(nebulakv_cli client/main.cpp)
+  set_target_properties(nebulakv_cli PROPERTIES OUTPUT_NAME "nebulakv-cli")
+  target_link_libraries(nebulakv_cli PRIVATE NebulaKV::network)
+  configure_project_target(nebulakv_cli)
+endif()
 
 include(CTest)
 if(BUILD_TESTING)

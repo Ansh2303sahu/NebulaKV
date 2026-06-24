@@ -25,7 +25,7 @@ namespace nebulakv {
 namespace {
 
 class FileDescriptor final {
-public:
+ public:
   explicit FileDescriptor(const int value) : value_{value} {}
   ~FileDescriptor() {
     if (value_ >= 0) {
@@ -43,19 +43,21 @@ public:
     return result;
   }
 
-private:
+ private:
   int value_{-1};
 };
 
 void write_all(const int descriptor, const std::span<const std::byte> bytes) {
   std::size_t written = 0;
   while (written < bytes.size()) {
-    const ssize_t result = ::write(descriptor, bytes.data() + written, bytes.size() - written);
+    const ssize_t result =
+        ::write(descriptor, bytes.data() + written, bytes.size() - written);
     if (result < 0) {
       if (errno == EINTR) {
         continue;
       }
-      throw std::system_error{errno, std::generic_category(), "failed to write SSTable file"};
+      throw std::system_error{errno, std::generic_category(),
+                              "failed to write SSTable file"};
     }
     if (result == 0) {
       throw std::runtime_error{"SSTable write returned zero bytes"};
@@ -74,7 +76,8 @@ void sync_descriptor(const int descriptor, const char* context) {
 }
 
 void sync_directory(const std::filesystem::path& directory) {
-  FileDescriptor descriptor{::open(directory.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC)};
+  FileDescriptor descriptor{
+      ::open(directory.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC)};
   if (descriptor.get() < 0) {
     throw std::system_error{errno, std::generic_category(),
                             "failed to open SSTable directory for fsync"};
@@ -82,18 +85,20 @@ void sync_directory(const std::filesystem::path& directory) {
   sync_descriptor(descriptor.get(), "failed to fsync SSTable directory");
 }
 
-[[nodiscard]] std::filesystem::path temporary_path_for(const std::filesystem::path& output_path) {
+[[nodiscard]] std::filesystem::path temporary_path_for(
+    const std::filesystem::path& output_path) {
   return output_path.string() + ".tmp";
 }
 
 [[nodiscard]] std::uint32_t narrow_block_size(const std::size_t value) {
   if (value == 0U || value > std::numeric_limits<std::uint32_t>::max()) {
-    throw std::invalid_argument{"SSTable target data block size must fit in a 32-bit field"};
+    throw std::invalid_argument{
+        "SSTable target data block size must fit in a 32-bit field"};
   }
   return static_cast<std::uint32_t>(value);
 }
 
-} // namespace
+}  // namespace
 
 SSTableMetadata SSTableWriter::write(const MemTable::Snapshot& entries,
                                      SSTableWriterOptions options) {
@@ -103,7 +108,8 @@ SSTableMetadata SSTableWriter::write(const MemTable::Snapshot& entries,
   if (entries.empty()) {
     throw std::invalid_argument{"cannot write an empty SSTable"};
   }
-  const std::uint32_t target_block_size = narrow_block_size(options.target_data_block_bytes);
+  const std::uint32_t target_block_size =
+      narrow_block_size(options.target_data_block_bytes);
 
   std::string_view previous_key;
   std::uint64_t min_sequence = std::numeric_limits<std::uint64_t>::max();
@@ -151,7 +157,8 @@ SSTableMetadata SSTableWriter::write(const MemTable::Snapshot& entries,
   FileDescriptor descriptor{
       ::open(temporary_path.c_str(), O_CREAT | O_TRUNC | O_WRONLY | O_CLOEXEC, 0644)};
   if (descriptor.get() < 0) {
-    throw std::system_error{errno, std::generic_category(), "failed to create temporary SSTable"};
+    throw std::system_error{errno, std::generic_category(),
+                            "failed to create temporary SSTable"};
   }
 
   try {
@@ -168,14 +175,16 @@ SSTableMetadata SSTableWriter::write(const MemTable::Snapshot& entries,
     index.entries.reserve(blocks.size());
     std::uint64_t current_offset = sstable_format::kHeaderSize;
     for (const DataBlock& block : blocks) {
-      const std::vector<std::byte> encoded = sstable_format::serialize_data_block(block);
-      index.entries.push_back(
-          IndexEntry{block.first_key(), block.last_key(), current_offset, encoded.size()});
+      const std::vector<std::byte> encoded =
+          sstable_format::serialize_data_block(block);
+      index.entries.push_back(IndexEntry{block.first_key(), block.last_key(), current_offset,
+                                         encoded.size()});
       write_all(descriptor.get(), encoded);
       current_offset += encoded.size();
     }
 
-    const std::vector<std::byte> encoded_index = sstable_format::serialize_index_block(index);
+    const std::vector<std::byte> encoded_index =
+        sstable_format::serialize_index_block(index);
     const std::uint64_t index_offset = current_offset;
     write_all(descriptor.get(), encoded_index);
     current_offset += encoded_index.size();
@@ -192,7 +201,8 @@ SSTableMetadata SSTableWriter::write(const MemTable::Snapshot& entries,
     sync_descriptor(descriptor.get(), "failed to fsync temporary SSTable");
     const int raw_descriptor = descriptor.release();
     if (::close(raw_descriptor) != 0) {
-      throw std::system_error{errno, std::generic_category(), "failed to close temporary SSTable"};
+      throw std::system_error{errno, std::generic_category(),
+                              "failed to close temporary SSTable"};
     }
 
     std::filesystem::rename(temporary_path, options.output_path);
@@ -214,4 +224,4 @@ SSTableMetadata SSTableWriter::write(const MemTable::Snapshot& entries,
   return metadata;
 }
 
-} // namespace nebulakv
+}  // namespace nebulakv

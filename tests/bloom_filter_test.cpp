@@ -66,9 +66,10 @@ TEST(BloomFilterTest, ObservedFalsePositiveRateStaysNearConfiguredTarget) {
     }
   }
 
-  const double observed = static_cast<double>(false_positives) / static_cast<double>(probes);
+  const double observed =
+      static_cast<double>(false_positives) / static_cast<double>(probes);
   EXPECT_LT(observed, 0.03);
 }
 
-} // namespace
-} // namespace nebulakv
+}  // namespace
+}  // namespace nebulakv

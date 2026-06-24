@@ -16,9 +16,9 @@ struct SSTableWriterOptions {
 };
 
 class SSTableWriter final {
-public:
+ public:
   [[nodiscard]] static SSTableMetadata write(const MemTable::Snapshot& entries,
-                                             SSTableWriterOptions options);
+                                              SSTableWriterOptions options);
 };
 
-} // namespace nebulakv
+}  // namespace nebulakv

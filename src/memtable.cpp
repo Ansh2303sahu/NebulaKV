@@ -11,7 +11,8 @@ namespace nebulakv {
 
 MemTable::MemTable(const std::uint64_t generation) : generation_{generation} {}
 
-void MemTable::put(std::string key, std::string value, const std::uint64_t sequence_number) {
+void MemTable::put(std::string key, std::string value,
+                   const std::uint64_t sequence_number) {
   validate_key(key);
   validate_value(value);
   if (sequence_number == 0U) {
@@ -42,7 +43,8 @@ std::optional<Entry> MemTable::get_entry(const std::string_view key) const {
   return entry->second;
 }
 
-std::optional<MemTable::LookupState> MemTable::lookup_state(const std::string_view key) const {
+std::optional<MemTable::LookupState> MemTable::lookup_state(
+    const std::string_view key) const {
   validate_key(key);
 
   std::shared_lock lock{mutex_};
@@ -119,11 +121,12 @@ void MemTable::insert_or_assign(std::string key, Entry entry) {
     return;
   }
 
-  const auto [inserted, was_inserted] = entries_.emplace(std::move(key), std::move(entry));
+  const auto [inserted, was_inserted] =
+      entries_.emplace(std::move(key), std::move(entry));
   if (!was_inserted) {
     throw std::logic_error{"failed to insert MemTable entry"};
   }
   approximate_memory_usage_ += estimated_entry_size(inserted->first, inserted->second);
 }
 
-} // namespace nebulakv
+}  // namespace nebulakv

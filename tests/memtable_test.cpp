@@ -162,4 +162,4 @@ TEST(MemTableTest, ValidatesKeysAndValues) {
   EXPECT_THROW(static_cast<void>(table.get_entry("")), std::invalid_argument);
 }
 
-} // namespace
+}  // namespace

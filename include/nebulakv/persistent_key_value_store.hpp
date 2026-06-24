@@ -38,7 +38,7 @@ struct PersistentStoreOptions {
 };
 
 class PersistentKeyValueStore final : public KeyValueStore {
-public:
+ public:
   explicit PersistentKeyValueStore(PersistentStoreOptions options);
   ~PersistentKeyValueStore() override = default;
 
@@ -75,8 +75,9 @@ public:
   [[nodiscard]] const RecoveryReport& recovery_report() const noexcept;
   [[nodiscard]] DurabilityMode durability_mode() const noexcept;
 
-private:
-  [[nodiscard]] std::optional<Entry> latest_entry_without_validation(std::string_view key) const;
+ private:
+  [[nodiscard]] std::optional<Entry> latest_entry_without_validation(
+      std::string_view key) const;
   [[nodiscard]] bool exists_without_validation(std::string_view key) const;
   void flush_immutable_memtables_locked();
   void reset_wal_if_fully_persisted_locked();
@@ -91,4 +92,4 @@ private:
   bool automatic_compaction_enabled_{true};
 };
 
-} // namespace nebulakv
+}  // namespace nebulakv

@@ -67,7 +67,8 @@ void MemTableSet::add_tombstone(std::string key) {
   validate_key(key);
 
   std::lock_guard write_lock{write_mutex_};
-  const bool was_live = latest_state_without_validation(key) == MemTable::LookupState::Value;
+  const bool was_live =
+      latest_state_without_validation(key) == MemTable::LookupState::Value;
   const std::uint64_t sequence_number = next_sequence_number();
   const auto table = active_table();
   table->add_tombstone(std::move(key), sequence_number);
@@ -105,9 +106,13 @@ std::size_t MemTableSet::active_memory_usage() const {
   return active_table()->approximate_memory_usage();
 }
 
-std::size_t MemTableSet::active_entry_count() const { return active_table()->entry_count(); }
+std::size_t MemTableSet::active_entry_count() const {
+  return active_table()->entry_count();
+}
 
-std::uint64_t MemTableSet::active_generation() const { return active_table()->generation(); }
+std::uint64_t MemTableSet::active_generation() const {
+  return active_table()->generation();
+}
 
 std::size_t MemTableSet::max_memory_bytes() const noexcept { return max_memory_bytes_; }
 
@@ -125,7 +130,9 @@ bool MemTableSet::discard_immutable(const std::uint64_t generation) {
   std::unique_lock lock{state_mutex_};
   const auto table = std::find_if(
       immutable_tables_.begin(), immutable_tables_.end(),
-      [generation](const auto& candidate) { return candidate->generation() == generation; });
+      [generation](const auto& candidate) {
+        return candidate->generation() == generation;
+      });
   if (table == immutable_tables_.end()) {
     return false;
   }
@@ -133,8 +140,8 @@ bool MemTableSet::discard_immutable(const std::uint64_t generation) {
   return true;
 }
 
-std::optional<Entry>
-MemTableSet::latest_entry_without_validation(const std::string_view key) const {
+std::optional<Entry> MemTableSet::latest_entry_without_validation(
+    const std::string_view key) const {
   std::shared_ptr<MemTable> active;
   std::vector<std::shared_ptr<const MemTable>> immutable;
   {
@@ -154,8 +161,8 @@ MemTableSet::latest_entry_without_validation(const std::string_view key) const {
   return std::nullopt;
 }
 
-std::optional<MemTable::LookupState>
-MemTableSet::latest_state_without_validation(const std::string_view key) const {
+std::optional<MemTable::LookupState> MemTableSet::latest_state_without_validation(
+    const std::string_view key) const {
   std::shared_ptr<MemTable> active;
   std::vector<std::shared_ptr<const MemTable>> immutable;
   {
@@ -216,4 +223,4 @@ std::uint64_t MemTableSet::next_sequence_number() const {
   return current + 1U;
 }
 
-} // namespace nebulakv
+}  // namespace nebulakv

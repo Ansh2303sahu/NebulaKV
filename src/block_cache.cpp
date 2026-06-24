@@ -19,7 +19,8 @@ double BlockCacheStatistics::hit_ratio() const noexcept {
   return static_cast<double>(hits) / static_cast<double>(total);
 }
 
-BlockCache::BlockCache(const std::size_t capacity_bytes) : capacity_bytes_{capacity_bytes} {
+BlockCache::BlockCache(const std::size_t capacity_bytes)
+    : capacity_bytes_{capacity_bytes} {
   if (capacity_bytes_ == 0U) {
     throw std::invalid_argument{"block cache capacity must be positive"};
   }
@@ -40,7 +41,8 @@ BlockCache::BlockPointer BlockCache::get(const std::string_view table_id,
   return found->second->block;
 }
 
-void BlockCache::put(std::string table_id, const std::uint64_t block_offset, BlockPointer block) {
+void BlockCache::put(std::string table_id, const std::uint64_t block_offset,
+                     BlockPointer block) {
   if (!block) {
     throw std::invalid_argument{"cannot cache a null data block"};
   }
@@ -82,7 +84,7 @@ void BlockCache::reset_statistics() {
 BlockCacheStatistics BlockCache::statistics() const {
   std::lock_guard lock{mutex_};
   return BlockCacheStatistics{capacity_bytes_, current_bytes_, index_.size(),
-                              hits_,           misses_,        evictions_};
+                              hits_, misses_, evictions_};
 }
 
 std::size_t BlockCache::capacity_bytes() const noexcept { return capacity_bytes_; }
@@ -113,4 +115,4 @@ void BlockCache::evict_until_fits(const std::size_t incoming_charge) {
   }
 }
 
-} // namespace nebulakv
+}  // namespace nebulakv

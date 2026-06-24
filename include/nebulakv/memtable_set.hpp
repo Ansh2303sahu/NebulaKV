@@ -26,7 +26,7 @@ struct MemTableOptions {
 };
 
 class MemTableSet final : public KeyValueStore {
-public:
+ public:
   static constexpr std::size_t kMaxKeySize = storage_limits::kMaxKeySize;
   static constexpr std::size_t kMaxValueSize = storage_limits::kMaxValueSize;
 
@@ -57,10 +57,11 @@ public:
   [[nodiscard]] std::vector<std::shared_ptr<const MemTable>> immutable_tables() const;
   bool discard_immutable(std::uint64_t generation);
 
-private:
-  [[nodiscard]] std::optional<Entry> latest_entry_without_validation(std::string_view key) const;
-  [[nodiscard]] std::optional<MemTable::LookupState>
-  latest_state_without_validation(std::string_view key) const;
+ private:
+  [[nodiscard]] std::optional<Entry> latest_entry_without_validation(
+      std::string_view key) const;
+  [[nodiscard]] std::optional<MemTable::LookupState> latest_state_without_validation(
+      std::string_view key) const;
   [[nodiscard]] std::shared_ptr<MemTable> active_table() const;
   void rotate_if_required(const std::shared_ptr<MemTable>& table);
   [[nodiscard]] std::optional<std::shared_ptr<const MemTable>> rotate_active_locked();
@@ -76,4 +77,4 @@ private:
   std::atomic<std::uint64_t> last_sequence_number_{0};
 };
 
-} // namespace nebulakv
+}  // namespace nebulakv

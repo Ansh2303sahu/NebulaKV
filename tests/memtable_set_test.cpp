@@ -18,7 +18,8 @@ using nebulakv::MemTableOptions;
 using nebulakv::MemTableSet;
 
 TEST(MemTableSetTest, ImplementsKeyValueStoreInterface) {
-  const std::unique_ptr<nebulakv::KeyValueStore> store = std::make_unique<MemTableSet>();
+  const std::unique_ptr<nebulakv::KeyValueStore> store =
+      std::make_unique<MemTableSet>();
 
   store->put("key", "value");
 
@@ -149,7 +150,8 @@ TEST(MemTableSetTest, NewestImmutableTableWins) {
 
   EXPECT_EQ(store.get("key"), "second");
   ASSERT_EQ(store.immutable_tables().size(), 2U);
-  EXPECT_GT(store.immutable_tables()[0]->generation(), store.immutable_tables()[1]->generation());
+  EXPECT_GT(store.immutable_tables()[0]->generation(),
+            store.immutable_tables()[1]->generation());
 }
 
 TEST(MemTableSetTest, ImmutableSnapshotsRemainSortedAndStable) {
@@ -190,7 +192,8 @@ TEST(MemTableSetTest, ConcurrentWritersReceiveUniqueSequences) {
   for (std::size_t writer = 0; writer < kWriterCount; ++writer) {
     writers.emplace_back([writer, &store] {
       for (std::size_t index = 0; index < kKeysPerWriter; ++index) {
-        store.put("writer-" + std::to_string(writer) + "-key-" + std::to_string(index), "value");
+        store.put("writer-" + std::to_string(writer) + "-key-" + std::to_string(index),
+                  "value");
       }
     });
   }
@@ -217,7 +220,8 @@ TEST(MemTableSetTest, ConcurrentReadersRemainCorrectDuringRotation) {
   for (std::size_t writer = 0; writer < kWriterCount; ++writer) {
     workers.emplace_back([writer, &store] {
       for (std::size_t index = 0; index < kOperations; ++index) {
-        store.put("dynamic-" + std::to_string(writer) + '-' + std::to_string(index), "value");
+        store.put("dynamic-" + std::to_string(writer) + '-' + std::to_string(index),
+                  "value");
       }
     });
   }
@@ -273,4 +277,4 @@ TEST(MemTableSetTest, ConcurrentUpdatesAndDeletesRemainConsistent) {
   }
 }
 
-} // namespace
+}  // namespace

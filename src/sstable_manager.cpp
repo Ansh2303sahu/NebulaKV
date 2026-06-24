@@ -37,7 +37,8 @@ namespace {
   return path.extension() == ".sst";
 }
 
-[[nodiscard]] bool is_temporary_storage_path(const std::filesystem::path& path) {
+[[nodiscard]] bool is_temporary_storage_path(
+    const std::filesystem::path& path) {
   const std::string filename = path.filename().string();
   return (path.extension() == ".tmp" && path.stem().extension() == ".sst") ||
          filename == "CURRENT.tmp" ||
@@ -51,7 +52,9 @@ namespace {
   return left_smallest <= right_largest && right_smallest <= left_largest;
 }
 
-template <typename ManagedTableType> void sort_tables(std::vector<ManagedTableType>& tables) {
+
+template <typename ManagedTableType>
+void sort_tables(std::vector<ManagedTableType>& tables) {
   std::sort(tables.begin(), tables.end(), [](const auto& left, const auto& right) {
     const auto& lhs = left.reader->metadata();
     const auto& rhs = right.reader->metadata();
@@ -86,7 +89,8 @@ void validate_level1_ranges(const std::vector<ManagedTableType>& tables) {
 }
 
 void sync_directory(const std::filesystem::path& directory) {
-  const int descriptor = ::open(directory.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+  const int descriptor =
+      ::open(directory.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC);
   if (descriptor < 0) {
     throw std::system_error{errno, std::generic_category(),
                             "failed to open SSTable directory for fsync"};
@@ -101,22 +105,25 @@ void sync_directory(const std::filesystem::path& directory) {
                             "failed to fsync SSTable directory"};
   }
   if (::close(descriptor) != 0) {
-    throw std::system_error{errno, std::generic_category(), "failed to close SSTable directory"};
+    throw std::system_error{errno, std::generic_category(),
+                            "failed to close SSTable directory"};
   }
 }
 
 [[nodiscard]] bool metadata_matches(const SSTableMetadata& expected,
                                     const SSTableMetadata& actual) {
-  return expected.generation == actual.generation && expected.entry_count == actual.entry_count &&
+  return expected.generation == actual.generation &&
+         expected.entry_count == actual.entry_count &&
          expected.block_count == actual.block_count &&
          expected.min_sequence_number == actual.min_sequence_number &&
          expected.max_sequence_number == actual.max_sequence_number &&
-         expected.smallest_key == actual.smallest_key && expected.largest_key == actual.largest_key;
+         expected.smallest_key == actual.smallest_key &&
+         expected.largest_key == actual.largest_key;
 }
 
 template <typename ManagedTableType>
-[[nodiscard]] std::optional<Entry>
-newest_entry_from_tables(const std::vector<ManagedTableType>& tables, const std::string_view key) {
+[[nodiscard]] std::optional<Entry> newest_entry_from_tables(
+    const std::vector<ManagedTableType>& tables, const std::string_view key) {
   std::optional<Entry> newest;
   for (const auto& table : tables) {
     const SSTableMetadata& metadata = table.reader->metadata();
@@ -124,7 +131,8 @@ newest_entry_from_tables(const std::vector<ManagedTableType>& tables, const std:
       continue;
     }
     const auto candidate = table.reader->get(key);
-    if (candidate && (!newest || candidate->sequence_number > newest->sequence_number)) {
+    if (candidate &&
+        (!newest || candidate->sequence_number > newest->sequence_number)) {
       newest = candidate;
     }
   }
@@ -132,9 +140,9 @@ newest_entry_from_tables(const std::vector<ManagedTableType>& tables, const std:
 }
 
 template <typename ManagedTableType>
-[[nodiscard]] std::size_t live_count_after_flush(const std::vector<ManagedTableType>& current,
-                                                 const MemTable::Snapshot& incoming,
-                                                 std::size_t live_count) {
+[[nodiscard]] std::size_t live_count_after_flush(
+    const std::vector<ManagedTableType>& current,
+    const MemTable::Snapshot& incoming, std::size_t live_count) {
   for (const auto& [key, entry] : incoming) {
     const auto previous = newest_entry_from_tables(current, key);
     if (previous && previous->sequence_number >= entry.sequence_number) {
@@ -152,21 +160,24 @@ template <typename ManagedTableType>
 }
 
 template <typename ManagedTableType>
-[[nodiscard]] std::size_t compute_live_key_count(const std::vector<ManagedTableType>& tables) {
+[[nodiscard]] std::size_t compute_live_key_count(
+    const std::vector<ManagedTableType>& tables) {
   std::map<std::string, Entry, std::less<>> latest;
   for (const auto& table : tables) {
     for (auto& [key, entry] : table.reader->read_all()) {
       const auto existing = latest.find(key);
-      if (existing == latest.end() || entry.sequence_number > existing->second.sequence_number) {
+      if (existing == latest.end() ||
+          entry.sequence_number > existing->second.sequence_number) {
         latest.insert_or_assign(std::move(key), std::move(entry));
       }
     }
   }
   return static_cast<std::size_t>(std::count_if(
-      latest.begin(), latest.end(), [](const auto& item) { return !item.second.deleted; }));
+      latest.begin(), latest.end(),
+      [](const auto& item) { return !item.second.deleted; }));
 }
 
-} // namespace
+}  // namespace
 
 SSTableManager::SSTableManager(SSTableManagerOptions options)
     : directory_{std::move(options.directory)},
@@ -174,7 +185,8 @@ SSTableManager::SSTableManager(SSTableManagerOptions options)
       bloom_false_positive_rate_{options.bloom_false_positive_rate},
       level0_compaction_trigger_{options.level0_compaction_trigger},
       level0_compaction_max_tables_{options.level0_compaction_max_tables},
-      block_cache_{std::make_shared<BlockCache>(options.block_cache_capacity_bytes)},
+      block_cache_{std::make_shared<BlockCache>(
+          options.block_cache_capacity_bytes)},
       manifest_{directory_} {
   if (directory_.empty()) {
     throw std::invalid_argument{"SSTable directory must not be empty"};
@@ -183,8 +195,8 @@ SSTableManager::SSTableManager(SSTableManagerOptions options)
       target_data_block_bytes_ > std::numeric_limits<std::uint32_t>::max()) {
     throw std::invalid_argument{"SSTable target data block size is invalid"};
   }
-  if (!std::isfinite(bloom_false_positive_rate_) || bloom_false_positive_rate_ <= 0.0 ||
-      bloom_false_positive_rate_ >= 1.0) {
+  if (!std::isfinite(bloom_false_positive_rate_) ||
+      bloom_false_positive_rate_ <= 0.0 || bloom_false_positive_rate_ >= 1.0) {
     throw std::invalid_argument{
         "SSTable Bloom filter false-positive rate must be between zero and one"};
   }
@@ -219,10 +231,11 @@ SSTableMetadata SSTableManager::flush(const MemTable& table) {
   writer_options.output_path = path;
   writer_options.target_data_block_bytes = target_data_block_bytes_;
   writer_options.generation = table.generation();
-  SSTableMetadata metadata = SSTableWriter::write(snapshot, std::move(writer_options));
+  SSTableMetadata metadata =
+      SSTableWriter::write(snapshot, std::move(writer_options));
   metadata.level = SSTableLevel::Level0;
-  auto new_reader =
-      std::make_shared<SSTableReader>(metadata.path, block_cache_, build_bloom_filter(snapshot));
+  auto new_reader = std::make_shared<SSTableReader>(
+      metadata.path, block_cache_, build_bloom_filter(snapshot));
 
   try {
     for (;;) {
@@ -233,10 +246,12 @@ SSTableMetadata SSTableManager::flush(const MemTable& table) {
       };
       const StateSnapshot state = [this] {
         std::shared_lock lock{mutex_};
-        return StateSnapshot{std::vector<ManagedTable>{readers_.cbegin(), readers_.cend()},
-                             live_key_count_, state_version_};
+        return StateSnapshot{
+            std::vector<ManagedTable>{readers_.cbegin(), readers_.cend()},
+            live_key_count_, state_version_};
       }();
-      std::vector<ManagedTable> current{state.readers.cbegin(), state.readers.cend()};
+      std::vector<ManagedTable> current{state.readers.cbegin(),
+                                        state.readers.cend()};
       const std::size_t new_live_count =
           live_count_after_flush(current, snapshot, state.live_key_count);
       current.push_back(ManagedTable{new_reader, SSTableLevel::Level0});
@@ -277,7 +292,8 @@ CompactionResult SSTableManager::compact_level0(const bool force_all) {
     output_generation = std::max(output_generation, metadata.generation);
     for (auto& [key, entry] : table.reader->read_all()) {
       const auto existing = merged.find(key);
-      if (existing == merged.end() || entry.sequence_number > existing->second.sequence_number) {
+      if (existing == merged.end() ||
+          entry.sequence_number > existing->second.sequence_number) {
         merged.insert_or_assign(std::move(key), std::move(entry));
       }
     }
@@ -310,15 +326,18 @@ CompactionResult SSTableManager::compact_level0(const bool force_all) {
       static_cast<void>(key);
       max_sequence = std::max(max_sequence, entry.sequence_number);
     }
-    output_path = table_path(SSTableLevel::Level1, file_id, output_generation, max_sequence);
+    output_path = table_path(SSTableLevel::Level1, file_id, output_generation,
+                             max_sequence);
     SSTableWriterOptions writer_options;
     writer_options.output_path = output_path;
     writer_options.target_data_block_bytes = target_data_block_bytes_;
     writer_options.generation = output_generation;
-    SSTableMetadata output_metadata = SSTableWriter::write(compacted, std::move(writer_options));
+    SSTableMetadata output_metadata =
+        SSTableWriter::write(compacted, std::move(writer_options));
     output_metadata.level = SSTableLevel::Level1;
-    output = ManagedTable{std::make_shared<SSTableReader>(output_metadata.path, block_cache_,
-                                                          build_bloom_filter(compacted)),
+    output = ManagedTable{std::make_shared<SSTableReader>(
+                              output_metadata.path, block_cache_,
+                              build_bloom_filter(compacted)),
                           SSTableLevel::Level1};
     result.output_tables = 1U;
   }
@@ -335,17 +354,21 @@ CompactionResult SSTableManager::compact_level0(const bool force_all) {
     for (const std::string& selected_path : selected_paths) {
       const bool still_active = std::any_of(
           readers_.begin(), readers_.end(), [&selected_path](const ManagedTable& table) {
-            return table.reader->metadata().path.lexically_normal().string() == selected_path;
+            return table.reader->metadata().path.lexically_normal().string() ==
+                   selected_path;
           });
       if (!still_active) {
-        throw std::runtime_error{"compaction input changed before manifest publication"};
+        throw std::runtime_error{
+            "compaction input changed before manifest publication"};
       }
     }
 
     std::vector<ManagedTable> replacement;
-    replacement.reserve(readers_.size() - selection.selected.size() + (output ? 1U : 0U));
+    replacement.reserve(readers_.size() - selection.selected.size() +
+                        (output ? 1U : 0U));
     for (const ManagedTable& table : readers_) {
-      const std::string path = table.reader->metadata().path.lexically_normal().string();
+      const std::string path =
+          table.reader->metadata().path.lexically_normal().string();
       if (selected_paths.contains(path)) {
         obsolete_paths.push_back(table.reader->metadata().path);
       } else {
@@ -407,9 +430,9 @@ std::size_t SSTableManager::table_count() const {
 
 std::size_t SSTableManager::level_table_count(const SSTableLevel level) const {
   std::shared_lock lock{mutex_};
-  return static_cast<std::size_t>(
-      std::count_if(readers_.begin(), readers_.end(),
-                    [level](const ManagedTable& table) { return table.level == level; }));
+  return static_cast<std::size_t>(std::count_if(
+      readers_.begin(), readers_.end(),
+      [level](const ManagedTable& table) { return table.level == level; }));
 }
 
 std::size_t SSTableManager::live_key_count() const {
@@ -432,7 +455,9 @@ std::vector<SSTableMetadata> SSTableManager::metadata() const {
   return metadata_for(readers_);
 }
 
-const std::filesystem::path& SSTableManager::directory() const noexcept { return directory_; }
+const std::filesystem::path& SSTableManager::directory() const noexcept {
+  return directory_;
+}
 
 const std::filesystem::path& SSTableManager::current_path() const noexcept {
   return manifest_.current_path();
@@ -449,7 +474,8 @@ CompactionStatistics SSTableManager::compaction_statistics() const {
 }
 
 void SSTableManager::load_existing() {
-  for (const auto& directory_entry : std::filesystem::directory_iterator{directory_}) {
+  for (const auto& directory_entry :
+       std::filesystem::directory_iterator{directory_}) {
     if (!directory_entry.is_regular_file()) {
       continue;
     }
@@ -477,11 +503,13 @@ void SSTableManager::load_manifest_snapshot(const ManifestSnapshot& snapshot) {
   for (const SSTableMetadata& expected : snapshot.tables) {
     auto uncached_reader = std::make_shared<SSTableReader>(expected.path, block_cache_);
     if (!metadata_matches(expected, uncached_reader->metadata())) {
-      throw std::runtime_error{"manifest metadata mismatch for SSTable: " + expected.path.string()};
+      throw std::runtime_error{"manifest metadata mismatch for SSTable: " +
+                               expected.path.string()};
     }
     MemTable::Snapshot contents = uncached_reader->read_all();
     loaded.push_back(ManagedTable{
-        std::make_shared<SSTableReader>(expected.path, block_cache_, build_bloom_filter(contents)),
+        std::make_shared<SSTableReader>(expected.path, block_cache_,
+                                        build_bloom_filter(contents)),
         expected.level});
   }
   readers_ = std::move(loaded);
@@ -492,8 +520,10 @@ void SSTableManager::load_manifest_snapshot(const ManifestSnapshot& snapshot) {
 
 void SSTableManager::migrate_legacy_tables() {
   std::vector<std::filesystem::path> paths;
-  for (const auto& directory_entry : std::filesystem::directory_iterator{directory_}) {
-    if (directory_entry.is_regular_file() && is_sstable_path(directory_entry.path())) {
+  for (const auto& directory_entry :
+       std::filesystem::directory_iterator{directory_}) {
+    if (directory_entry.is_regular_file() &&
+        is_sstable_path(directory_entry.path())) {
       paths.push_back(directory_entry.path());
     }
   }
@@ -503,7 +533,8 @@ void SSTableManager::migrate_legacy_tables() {
     auto uncached_reader = std::make_shared<SSTableReader>(path, block_cache_);
     MemTable::Snapshot contents = uncached_reader->read_all();
     readers_.push_back(ManagedTable{
-        std::make_shared<SSTableReader>(path, block_cache_, build_bloom_filter(contents)),
+        std::make_shared<SSTableReader>(path, block_cache_,
+                                        build_bloom_filter(contents)),
         SSTableLevel::Level0});
   }
   sort_tables(readers_);
@@ -519,15 +550,18 @@ void SSTableManager::cleanup_abandoned_files(
   }
 
   bool removed_any = false;
-  for (const auto& directory_entry : std::filesystem::directory_iterator{directory_}) {
-    if (!directory_entry.is_regular_file() || !is_sstable_path(directory_entry.path())) {
+  for (const auto& directory_entry :
+       std::filesystem::directory_iterator{directory_}) {
+    if (!directory_entry.is_regular_file() ||
+        !is_sstable_path(directory_entry.path())) {
       continue;
     }
     if (!active.contains(directory_entry.path().filename().string())) {
       std::error_code error;
       const bool removed = std::filesystem::remove(directory_entry.path(), error);
       if (error) {
-        throw std::system_error{error, "failed to remove abandoned SSTable file"};
+        throw std::system_error{error,
+                                "failed to remove abandoned SSTable file"};
       }
       removed_any = removed_any || removed;
     }
@@ -548,7 +582,8 @@ void SSTableManager::publish_tables_locked(std::vector<ManagedTable> tables,
   bool has_tables = false;
   for (const ManagedTable& table : tables) {
     const SSTableMetadata& metadata = table.reader->metadata();
-    new_max_sequence = std::max(new_max_sequence, metadata.max_sequence_number);
+    new_max_sequence =
+        std::max(new_max_sequence, metadata.max_sequence_number);
     maximum_generation = std::max(maximum_generation, metadata.generation);
     has_tables = true;
   }
@@ -577,7 +612,8 @@ void SSTableManager::recalculate_state_locked() {
   bool has_tables = false;
   for (const ManagedTable& table : readers_) {
     const SSTableMetadata& metadata = table.reader->metadata();
-    max_sequence_number_ = std::max(max_sequence_number_, metadata.max_sequence_number);
+    max_sequence_number_ =
+        std::max(max_sequence_number_, metadata.max_sequence_number);
     maximum_generation = std::max(maximum_generation, metadata.generation);
     has_tables = true;
   }
@@ -589,6 +625,7 @@ void SSTableManager::recalculate_state_locked() {
   } else {
     next_generation_ = 0U;
   }
+
 }
 
 SSTableManager::CompactionSelection
@@ -599,7 +636,8 @@ SSTableManager::select_level0_compaction_locked(const bool force_all) const {
       level0.push_back(table);
     }
   }
-  if (level0.empty() || (!force_all && level0.size() < level0_compaction_trigger_)) {
+  if (level0.empty() ||
+      (!force_all && level0.size() < level0_compaction_trigger_)) {
     return {};
   }
 
@@ -612,22 +650,28 @@ SSTableManager::select_level0_compaction_locked(const bool force_all) const {
     return lhs.generation < rhs.generation;
   });
   const std::size_t selected_count =
-      force_all ? level0.size() : std::min(level0.size(), level0_compaction_max_tables_);
+      force_all ? level0.size()
+                : std::min(level0.size(), level0_compaction_max_tables_);
 
   CompactionSelection selection;
   selection.selected = std::vector<ManagedTable>{
-      level0.cbegin(), level0.cbegin() + static_cast<std::ptrdiff_t>(selected_count)};
-  selection.smallest_key = selection.selected.front().reader->metadata().smallest_key;
-  selection.largest_key = selection.selected.front().reader->metadata().largest_key;
+      level0.cbegin(),
+      level0.cbegin() + static_cast<std::ptrdiff_t>(selected_count)};
+  selection.smallest_key =
+      selection.selected.front().reader->metadata().smallest_key;
+  selection.largest_key =
+      selection.selected.front().reader->metadata().largest_key;
   for (const ManagedTable& table : selection.selected) {
     selection.smallest_key =
         std::min(selection.smallest_key, table.reader->metadata().smallest_key);
-    selection.largest_key = std::max(selection.largest_key, table.reader->metadata().largest_key);
+    selection.largest_key =
+        std::max(selection.largest_key, table.reader->metadata().largest_key);
   }
 
   std::set<std::string> selected_paths;
   for (const ManagedTable& table : selection.selected) {
-    selected_paths.insert(table.reader->metadata().path.lexically_normal().string());
+    selected_paths.insert(
+        table.reader->metadata().path.lexically_normal().string());
   }
 
   bool expanded = true;
@@ -637,24 +681,28 @@ SSTableManager::select_level0_compaction_locked(const bool force_all) const {
       if (table.level != SSTableLevel::Level1) {
         continue;
       }
-      const std::string path = table.reader->metadata().path.lexically_normal().string();
+      const std::string path =
+          table.reader->metadata().path.lexically_normal().string();
       if (selected_paths.contains(path)) {
         continue;
       }
       const SSTableMetadata& metadata = table.reader->metadata();
-      if (ranges_overlap(selection.smallest_key, selection.largest_key, metadata.smallest_key,
-                         metadata.largest_key)) {
+      if (ranges_overlap(selection.smallest_key, selection.largest_key,
+                         metadata.smallest_key, metadata.largest_key)) {
         selection.selected.push_back(table);
         selected_paths.insert(path);
-        selection.smallest_key = std::min(selection.smallest_key, metadata.smallest_key);
-        selection.largest_key = std::max(selection.largest_key, metadata.largest_key);
+        selection.smallest_key =
+            std::min(selection.smallest_key, metadata.smallest_key);
+        selection.largest_key =
+            std::max(selection.largest_key, metadata.largest_key);
         expanded = true;
       }
     }
   }
 
   for (const ManagedTable& table : readers_) {
-    const std::string path = table.reader->metadata().path.lexically_normal().string();
+    const std::string path =
+        table.reader->metadata().path.lexically_normal().string();
     if (!selected_paths.contains(path)) {
       selection.unselected.push_back(table);
     }
@@ -662,23 +710,25 @@ SSTableManager::select_level0_compaction_locked(const bool force_all) const {
   return selection;
 }
 
-bool SSTableManager::can_drop_tombstone(const std::string_view key, const Entry& tombstone,
-                                        const std::vector<ManagedTable>& unselected) const {
+bool SSTableManager::can_drop_tombstone(
+    const std::string_view key, const Entry& tombstone,
+    const std::vector<ManagedTable>& unselected) const {
   for (const ManagedTable& table : unselected) {
     const SSTableMetadata& metadata = table.reader->metadata();
     if (key < metadata.smallest_key || key > metadata.largest_key) {
       continue;
     }
     const auto entry = table.reader->get(key);
-    if (entry && !entry->deleted && entry->sequence_number <= tombstone.sequence_number) {
+    if (entry && !entry->deleted &&
+        entry->sequence_number <= tombstone.sequence_number) {
       return false;
     }
   }
   return true;
 }
 
-std::vector<SSTableMetadata>
-SSTableManager::metadata_for(const std::vector<ManagedTable>& tables) const {
+std::vector<SSTableMetadata> SSTableManager::metadata_for(
+    const std::vector<ManagedTable>& tables) const {
   std::vector<SSTableMetadata> result;
   result.reserve(tables.size());
   for (const ManagedTable& table : tables) {
@@ -699,13 +749,13 @@ std::uint64_t SSTableManager::reserve_file_id() {
   return result;
 }
 
-std::filesystem::path SSTableManager::table_path(const SSTableLevel level,
-                                                 const std::uint64_t file_id,
-                                                 const std::uint64_t generation,
-                                                 const std::uint64_t max_sequence) const {
+std::filesystem::path SSTableManager::table_path(
+    const SSTableLevel level, const std::uint64_t file_id,
+    const std::uint64_t generation, const std::uint64_t max_sequence) const {
   std::ostringstream name;
-  name << "sstable-" << to_string(level) << "-f" << std::setw(20) << std::setfill('0') << file_id
-       << "-g" << std::setw(20) << std::setfill('0') << generation << "-s" << std::setw(20)
+  name << "sstable-" << to_string(level) << "-f" << std::setw(20)
+       << std::setfill('0') << file_id << "-g" << std::setw(20)
+       << std::setfill('0') << generation << "-s" << std::setw(20)
        << std::setfill('0') << max_sequence << ".sst";
   return directory_ / name.str();
 }
@@ -747,9 +797,10 @@ void SSTableManager::reset_read_statistics() {
   }
 }
 
-std::shared_ptr<const BloomFilter>
-SSTableManager::build_bloom_filter(const MemTable::Snapshot& snapshot) const {
-  auto filter = std::make_shared<BloomFilter>(snapshot.size(), bloom_false_positive_rate_);
+std::shared_ptr<const BloomFilter> SSTableManager::build_bloom_filter(
+    const MemTable::Snapshot& snapshot) const {
+  auto filter = std::make_shared<BloomFilter>(snapshot.size(),
+                                              bloom_false_positive_rate_);
   for (const auto& [key, entry] : snapshot) {
     static_cast<void>(entry);
     filter->add(key);
@@ -757,4 +808,4 @@ SSTableManager::build_bloom_filter(const MemTable::Snapshot& snapshot) const {
   return filter;
 }
 
-} // namespace nebulakv
+}  // namespace nebulakv

@@ -15,7 +15,7 @@
 namespace nebulakv::test {
 
 class TemporaryDirectory final {
-public:
+ public:
   TemporaryDirectory() {
     const auto timestamp = std::chrono::steady_clock::now().time_since_epoch().count();
     path_ = std::filesystem::temp_directory_path() /
@@ -35,9 +35,11 @@ public:
 
   [[nodiscard]] const std::filesystem::path& path() const noexcept { return path_; }
 
-  [[nodiscard]] std::filesystem::path file(const std::string& name) const { return path_ / name; }
+  [[nodiscard]] std::filesystem::path file(const std::string& name) const {
+    return path_ / name;
+  }
 
-private:
+ private:
   std::filesystem::path path_;
 };
 
@@ -61,7 +63,8 @@ inline std::vector<std::byte> read_file(const std::filesystem::path& path) {
   return bytes;
 }
 
-inline void write_file(const std::filesystem::path& path, const std::vector<std::byte>& bytes) {
+inline void write_file(const std::filesystem::path& path,
+                       const std::vector<std::byte>& bytes) {
   std::ofstream output{path, std::ios::binary | std::ios::trunc};
   if (!output) {
     throw std::runtime_error{"failed to create test file"};
@@ -75,7 +78,8 @@ inline void write_file(const std::filesystem::path& path, const std::vector<std:
   }
 }
 
-inline void overwrite_byte(const std::filesystem::path& path, const std::uint64_t offset,
+inline void overwrite_byte(const std::filesystem::path& path,
+                           const std::uint64_t offset,
                            const std::byte value) {
   std::fstream file{path, std::ios::binary | std::ios::in | std::ios::out};
   if (!file) {
@@ -89,4 +93,4 @@ inline void overwrite_byte(const std::filesystem::path& path, const std::uint64_
   }
 }
 
-} // namespace nebulakv::test
+}  // namespace nebulakv::test

@@ -9,7 +9,8 @@
 namespace nebulakv {
 
 RecoveryReport RecoveryManager::recover(const std::filesystem::path& wal_path,
-                                        KeyValueStore& destination, const RecoveryOptions options) {
+                                        KeyValueStore& destination,
+                                        const RecoveryOptions options) {
   RecoveryReport report;
   if (!std::filesystem::exists(wal_path)) {
     return report;
@@ -45,4 +46,4 @@ RecoveryReport RecoveryManager::recover(const std::filesystem::path& wal_path,
   return report;
 }
 
-} // namespace nebulakv
+}  // namespace nebulakv

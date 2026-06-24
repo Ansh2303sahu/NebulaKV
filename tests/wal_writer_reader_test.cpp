@@ -18,8 +18,8 @@ namespace {
 
 using nebulakv::DurabilityMode;
 using nebulakv::OperationType;
-using nebulakv::WalReader;
 using nebulakv::WalReadIssueCode;
+using nebulakv::WalReader;
 using nebulakv::WalRecord;
 using nebulakv::WalWriter;
 using nebulakv::WalWriterOptions;
@@ -28,8 +28,9 @@ using nebulakv::test::TemporaryDirectory;
 std::vector<WalRecord> read_records(const std::filesystem::path& path) {
   std::vector<WalRecord> records;
   const WalReader reader{path};
-  const auto result =
-      reader.scan([&records](const WalRecord& record) { records.push_back(record); });
+  const auto result = reader.scan([&records](const WalRecord& record) {
+    records.push_back(record);
+  });
   EXPECT_FALSE(result.issue.has_value());
   return records;
 }
@@ -131,18 +132,19 @@ TEST(WalWriterReaderTest, BatchModeFlushesWithoutAdditionalWrites) {
 
 TEST(WalWriterReaderTest, RejectsEmptyKey) {
   TemporaryDirectory directory;
-  WalWriter writer{
-      {directory.file("database.wal"), DurabilityMode::None, std::chrono::milliseconds{100}}};
+  WalWriter writer{{directory.file("database.wal"), DurabilityMode::None,
+                    std::chrono::milliseconds{100}}};
 
   EXPECT_THROW(writer.append({OperationType::Put, "", "value"}), std::invalid_argument);
 }
 
 TEST(WalWriterReaderTest, RejectsValueOnDeleteRecord) {
   TemporaryDirectory directory;
-  WalWriter writer{
-      {directory.file("database.wal"), DurabilityMode::None, std::chrono::milliseconds{100}}};
+  WalWriter writer{{directory.file("database.wal"), DurabilityMode::None,
+                    std::chrono::milliseconds{100}}};
 
-  EXPECT_THROW(writer.append({OperationType::Delete, "key", "value"}), std::invalid_argument);
+  EXPECT_THROW(writer.append({OperationType::Delete, "key", "value"}),
+               std::invalid_argument);
 }
 
 TEST(WalWriterReaderTest, CleanlyHandlesMissingFile) {
@@ -158,7 +160,8 @@ TEST(WalWriterReaderTest, CleanlyHandlesMissingFile) {
 TEST(WalWriterReaderTest, StopsOnPartialHeader) {
   TemporaryDirectory directory;
   const auto path = directory.file("database.wal");
-  nebulakv::test::write_file(path, {std::byte{'N'}, std::byte{'K'}, std::byte{'V'}});
+  nebulakv::test::write_file(path,
+                             {std::byte{'N'}, std::byte{'K'}, std::byte{'V'}});
 
   const WalReader reader{path};
   const auto result = reader.scan([](const WalRecord&) {});
@@ -280,8 +283,9 @@ TEST(WalWriterReaderTest, ReportsOffsetOfCorruptedLaterRecord) {
 
   std::vector<WalRecord> records;
   const WalReader reader{path};
-  const auto result =
-      reader.scan([&records](const WalRecord& record) { records.push_back(record); });
+  const auto result = reader.scan([&records](const WalRecord& record) {
+    records.push_back(record);
+  });
 
   ASSERT_EQ(records.size(), 1U);
   ASSERT_TRUE(result.issue.has_value());
@@ -290,4 +294,4 @@ TEST(WalWriterReaderTest, ReportsOffsetOfCorruptedLaterRecord) {
   EXPECT_EQ(result.valid_bytes, first_record_size);
 }
 
-} // namespace
+}  // namespace

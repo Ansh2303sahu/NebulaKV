@@ -13,7 +13,8 @@
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-        "WARNINGS_AS_ERRORS": "ON"
+        "WARNINGS_AS_ERRORS": "ON",
+        "ENABLE_GRPC": "OFF"
       }
     },
     {
@@ -74,25 +75,112 @@
         "ENABLE_BENCHMARKS": "ON",
         "WARNINGS_AS_ERRORS": "ON"
       }
+    },
+    {
+      "name": "network-debug",
+      "inherits": "base",
+      "displayName": "gRPC Debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "BUILD_TESTING": "ON",
+        "ENABLE_CLANG_TIDY": "OFF",
+        "ENABLE_BENCHMARKS": "OFF",
+        "ENABLE_GRPC": "ON"
+      }
+    },
+    {
+      "name": "network-release",
+      "inherits": "base",
+      "displayName": "gRPC Release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "BUILD_TESTING": "ON",
+        "ENABLE_CLANG_TIDY": "OFF",
+        "ENABLE_BENCHMARKS": "OFF",
+        "ENABLE_GRPC": "ON"
+      }
+    },
+    {
+      "name": "network-asan",
+      "inherits": "base",
+      "displayName": "gRPC Address and Undefined Behaviour Sanitizers",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "BUILD_TESTING": "ON",
+        "ENABLE_ASAN": "ON",
+        "ENABLE_UBSAN": "ON",
+        "ENABLE_CLANG_TIDY": "OFF",
+        "ENABLE_BENCHMARKS": "OFF",
+        "ENABLE_GRPC": "ON"
+      }
+    },
+    {
+      "name": "network-tsan",
+      "inherits": "base",
+      "displayName": "gRPC Thread Sanitizer",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "BUILD_TESTING": "ON",
+        "ENABLE_TSAN": "ON",
+        "ENABLE_CLANG_TIDY": "OFF",
+        "ENABLE_BENCHMARKS": "OFF",
+        "ENABLE_GRPC": "ON",
+        "ENABLE_GRPC_INTEGRATION_TESTS": "OFF"
+      }
     }
   ],
   "buildPresets": [
-    { "name": "debug", "configurePreset": "debug" },
-    { "name": "release", "configurePreset": "release" },
-    { "name": "asan", "configurePreset": "asan" },
-    { "name": "tsan", "configurePreset": "tsan" },
-    { "name": "benchmark", "configurePreset": "benchmark" }
+    {
+      "name": "debug",
+      "configurePreset": "debug"
+    },
+    {
+      "name": "release",
+      "configurePreset": "release"
+    },
+    {
+      "name": "asan",
+      "configurePreset": "asan"
+    },
+    {
+      "name": "tsan",
+      "configurePreset": "tsan"
+    },
+    {
+      "name": "benchmark",
+      "configurePreset": "benchmark"
+    },
+    {
+      "name": "network-debug",
+      "configurePreset": "network-debug"
+    },
+    {
+      "name": "network-release",
+      "configurePreset": "network-release"
+    },
+    {
+      "name": "network-asan",
+      "configurePreset": "network-asan"
+    },
+    {
+      "name": "network-tsan",
+      "configurePreset": "network-tsan"
+    }
   ],
   "testPresets": [
     {
       "name": "debug",
       "configurePreset": "debug",
-      "output": { "outputOnFailure": true }
+      "output": {
+        "outputOnFailure": true
+      }
     },
     {
       "name": "release",
       "configurePreset": "release",
-      "output": { "outputOnFailure": true }
+      "output": {
+        "outputOnFailure": true
+      }
     },
     {
       "name": "asan",
@@ -101,7 +189,9 @@
         "ASAN_OPTIONS": "detect_leaks=1:halt_on_error=1",
         "UBSAN_OPTIONS": "print_stacktrace=1:halt_on_error=1"
       },
-      "output": { "outputOnFailure": true }
+      "output": {
+        "outputOnFailure": true
+      }
     },
     {
       "name": "tsan",
@@ -109,7 +199,44 @@
       "environment": {
         "TSAN_OPTIONS": "halt_on_error=1"
       },
-      "output": { "outputOnFailure": true }
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "network-debug",
+      "configurePreset": "network-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "network-release",
+      "configurePreset": "network-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "network-asan",
+      "configurePreset": "network-asan",
+      "environment": {
+        "ASAN_OPTIONS": "detect_leaks=1:halt_on_error=1",
+        "UBSAN_OPTIONS": "print_stacktrace=1:halt_on_error=1"
+      },
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "network-tsan",
+      "configurePreset": "network-tsan",
+      "environment": {
+        "TSAN_OPTIONS": "halt_on_error=1"
+      },
+      "output": {
+        "outputOnFailure": true
+      }
     }
   ]
 }

@@ -25,4 +25,4 @@ std::uint32_t ChecksumCalculator::crc32(const std::string_view data) noexcept {
   return crc32(std::span<const std::byte>{bytes, data.size()});
 }
 
-} // namespace nebulakv
+}  // namespace nebulakv

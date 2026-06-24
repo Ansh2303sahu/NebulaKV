@@ -26,13 +26,15 @@ struct BlockCacheStatistics {
 };
 
 class BlockCache final {
-public:
+ public:
   using BlockPointer = std::shared_ptr<const DataBlock>;
 
   explicit BlockCache(std::size_t capacity_bytes);
 
-  [[nodiscard]] BlockPointer get(std::string_view table_id, std::uint64_t block_offset);
-  void put(std::string table_id, std::uint64_t block_offset, BlockPointer block);
+  [[nodiscard]] BlockPointer get(std::string_view table_id,
+                                 std::uint64_t block_offset);
+  void put(std::string table_id, std::uint64_t block_offset,
+           BlockPointer block);
 
   void clear();
   void reset_statistics();
@@ -41,7 +43,7 @@ public:
   [[nodiscard]] std::size_t capacity_bytes() const noexcept;
   [[nodiscard]] static std::size_t estimate_charge(const DataBlock& block) noexcept;
 
-private:
+ private:
   struct Key {
     std::string table_id;
     std::uint64_t block_offset{0};
@@ -74,4 +76,4 @@ private:
   std::uint64_t evictions_{0};
 };
 
-} // namespace nebulakv
+}  // namespace nebulakv

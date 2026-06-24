@@ -20,16 +20,16 @@ namespace {
   return "key-" + std::string(10U - digits.size(), '0') + digits;
 }
 
-[[nodiscard]] std::filesystem::path benchmark_directory(const std::string_view name,
-                                                        const std::size_t key_count) {
+[[nodiscard]] std::filesystem::path benchmark_directory(
+    const std::string_view name, const std::size_t key_count) {
   return std::filesystem::temp_directory_path() /
-         ("nebulakv-benchmark-" + std::string{name} + "-" + std::to_string(::getpid()) + "-" +
-          std::to_string(key_count));
+         ("nebulakv-benchmark-" + std::string{name} + "-" +
+          std::to_string(::getpid()) + "-" + std::to_string(key_count));
 }
 
-[[nodiscard]] nebulakv::MemTable::Snapshot
-write_benchmark_table(const std::filesystem::path& path, const std::size_t key_count,
-                      const bool even_keys_only = false) {
+[[nodiscard]] nebulakv::MemTable::Snapshot write_benchmark_table(
+    const std::filesystem::path& path, const std::size_t key_count,
+    const bool even_keys_only = false) {
   nebulakv::MemTable table{0U};
   for (std::size_t index = 0; index < key_count; ++index) {
     const std::size_t logical_index = even_keys_only ? index * 2U : index;
@@ -116,14 +116,19 @@ void benchmark_sstable_bloom_negative_get(benchmark::State& state) {
   const auto bloom = reader.lookup_statistics();
   const auto cache_statistics = cache->statistics();
   state.SetItemsProcessed(state.iterations());
-  state.counters["block_reads"] = static_cast<double>(cache_statistics.misses);
-  state.counters["bloom_negatives"] = static_cast<double>(bloom.bloom_negatives);
+  state.counters["block_reads"] =
+      static_cast<double>(cache_statistics.misses);
+  state.counters["bloom_negatives"] =
+      static_cast<double>(bloom.bloom_negatives);
   state.counters["keys"] = static_cast<double>(key_count);
   std::filesystem::remove_all(directory);
 }
 
-} // namespace
+}  // namespace
 
 BENCHMARK(benchmark_sstable_uncached_get)->Arg(1000)->Arg(10000)->Arg(100000);
 BENCHMARK(benchmark_sstable_cached_get)->Arg(1000)->Arg(10000)->Arg(100000);
-BENCHMARK(benchmark_sstable_bloom_negative_get)->Arg(1000)->Arg(10000)->Arg(100000);
+BENCHMARK(benchmark_sstable_bloom_negative_get)
+    ->Arg(1000)
+    ->Arg(10000)
+    ->Arg(100000);

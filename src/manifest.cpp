@@ -27,19 +27,19 @@
 namespace nebulakv {
 namespace {
 
-constexpr std::array<std::byte, 8> kManifestMagic{std::byte{'N'}, std::byte{'B'}, std::byte{'L'},
-                                                  std::byte{'M'}, std::byte{'A'}, std::byte{'N'},
-                                                  std::byte{'0'}, std::byte{'1'}};
-constexpr std::array<std::byte, 8> kCurrentMagic{std::byte{'N'}, std::byte{'B'}, std::byte{'L'},
-                                                 std::byte{'C'}, std::byte{'U'}, std::byte{'R'},
-                                                 std::byte{'0'}, std::byte{'1'}};
+constexpr std::array<std::byte, 8> kManifestMagic{
+    std::byte{'N'}, std::byte{'B'}, std::byte{'L'}, std::byte{'M'},
+    std::byte{'A'}, std::byte{'N'}, std::byte{'0'}, std::byte{'1'}};
+constexpr std::array<std::byte, 8> kCurrentMagic{
+    std::byte{'N'}, std::byte{'B'}, std::byte{'L'}, std::byte{'C'},
+    std::byte{'U'}, std::byte{'R'}, std::byte{'0'}, std::byte{'1'}};
 constexpr std::uint16_t kManifestVersion = 1;
 constexpr std::size_t kMaximumMetadataFileBytes = 64U * 1024U * 1024U;
 constexpr std::size_t kMaximumManifestTables = 1U << 20U;
 constexpr std::size_t kMaximumFilenameBytes = 4096U;
 
 class FileDescriptor final {
-public:
+ public:
   explicit FileDescriptor(const int value) noexcept : value_{value} {}
   ~FileDescriptor() {
     if (value_ >= 0) {
@@ -57,7 +57,7 @@ public:
     return value;
   }
 
-private:
+ private:
   int value_{-1};
 };
 
@@ -88,7 +88,7 @@ void append_bytes(std::vector<std::byte>& output, const std::string_view value) 
 }
 
 class Decoder final {
-public:
+ public:
   explicit Decoder(const std::span<const std::byte> bytes) : bytes_{bytes} {}
 
   [[nodiscard]] std::uint8_t read_uint8() {
@@ -101,7 +101,9 @@ public:
     const std::uint16_t value =
         static_cast<std::uint16_t>(std::to_integer<std::uint8_t>(bytes_[offset_])) |
         static_cast<std::uint16_t>(
-            static_cast<std::uint16_t>(std::to_integer<std::uint8_t>(bytes_[offset_ + 1U])) << 8U);
+            static_cast<std::uint16_t>(
+                std::to_integer<std::uint8_t>(bytes_[offset_ + 1U]))
+            << 8U);
     offset_ += 2U;
     return value;
   }
@@ -110,7 +112,8 @@ public:
     require(4U);
     std::uint32_t value = 0;
     for (unsigned int index = 0; index < 4U; ++index) {
-      value |= static_cast<std::uint32_t>(std::to_integer<std::uint8_t>(bytes_[offset_ + index]))
+      value |= static_cast<std::uint32_t>(
+                   std::to_integer<std::uint8_t>(bytes_[offset_ + index]))
                << (index * 8U);
     }
     offset_ += 4U;
@@ -121,7 +124,8 @@ public:
     require(8U);
     std::uint64_t value = 0;
     for (unsigned int index = 0; index < 8U; ++index) {
-      value |= static_cast<std::uint64_t>(std::to_integer<std::uint8_t>(bytes_[offset_ + index]))
+      value |= static_cast<std::uint64_t>(
+                   std::to_integer<std::uint8_t>(bytes_[offset_ + index]))
                << (index * 8U);
     }
     offset_ += 8U;
@@ -138,8 +142,8 @@ public:
 
   void expect_magic(const std::span<const std::byte> magic) {
     require(magic.size());
-    if (!std::equal(magic.begin(), magic.end(),
-                    bytes_.begin() + static_cast<std::ptrdiff_t>(offset_))) {
+    if (!std::equal(magic.begin(), magic.end(), bytes_.begin() +
+                                                static_cast<std::ptrdiff_t>(offset_))) {
       throw std::runtime_error{"metadata file has an invalid magic value"};
     }
     offset_ += magic.size();
@@ -147,7 +151,7 @@ public:
 
   [[nodiscard]] bool at_end() const noexcept { return offset_ == bytes_.size(); }
 
-private:
+ private:
   void require(const std::size_t count) const {
     if (count > bytes_.size() - offset_) {
       throw std::runtime_error{"metadata file is truncated"};
@@ -158,7 +162,8 @@ private:
   std::size_t offset_{0};
 };
 
-[[nodiscard]] std::uint32_t checked_uint32(const std::size_t value, const char* context) {
+[[nodiscard]] std::uint32_t checked_uint32(const std::size_t value,
+                                           const char* context) {
   if (value > std::numeric_limits<std::uint32_t>::max()) {
     throw std::length_error{context};
   }
@@ -166,15 +171,18 @@ private:
 }
 
 void append_checksum(std::vector<std::byte>& bytes) {
-  append_uint32(bytes, ChecksumCalculator::crc32(std::span<const std::byte>{bytes}));
+  append_uint32(bytes, ChecksumCalculator::crc32(
+                           std::span<const std::byte>{bytes}));
 }
 
-[[nodiscard]] std::span<const std::byte> verified_payload(const std::vector<std::byte>& bytes) {
+[[nodiscard]] std::span<const std::byte> verified_payload(
+    const std::vector<std::byte>& bytes) {
   if (bytes.size() < sizeof(std::uint32_t)) {
     throw std::runtime_error{"metadata file is too small"};
   }
   const std::size_t payload_size = bytes.size() - sizeof(std::uint32_t);
-  Decoder checksum_decoder{std::span<const std::byte>{bytes}.subspan(payload_size)};
+  Decoder checksum_decoder{
+      std::span<const std::byte>{bytes}.subspan(payload_size)};
   const std::uint32_t expected = checksum_decoder.read_uint32();
   const auto payload = std::span<const std::byte>{bytes}.first(payload_size);
   if (ChecksumCalculator::crc32(payload) != expected) {
@@ -183,7 +191,8 @@ void append_checksum(std::vector<std::byte>& bytes) {
   return payload;
 }
 
-[[nodiscard]] std::vector<std::byte> read_file(const std::filesystem::path& path) {
+[[nodiscard]] std::vector<std::byte> read_file(
+    const std::filesystem::path& path) {
   std::ifstream input{path, std::ios::binary | std::ios::ate};
   if (!input) {
     throw std::runtime_error{"failed to open metadata file: " + path.string()};
@@ -210,12 +219,14 @@ void append_checksum(std::vector<std::byte>& bytes) {
 void write_all(const int descriptor, const std::span<const std::byte> bytes) {
   std::size_t written = 0;
   while (written < bytes.size()) {
-    const ssize_t result = ::write(descriptor, bytes.data() + written, bytes.size() - written);
+    const ssize_t result =
+        ::write(descriptor, bytes.data() + written, bytes.size() - written);
     if (result < 0) {
       if (errno == EINTR) {
         continue;
       }
-      throw std::system_error{errno, std::generic_category(), "failed to write metadata file"};
+      throw std::system_error{errno, std::generic_category(),
+                              "failed to write metadata file"};
     }
     if (result == 0) {
       throw std::runtime_error{"metadata write returned zero bytes"};
@@ -234,7 +245,8 @@ void sync_descriptor(const int descriptor, const char* context) {
 }
 
 void sync_directory(const std::filesystem::path& directory) {
-  FileDescriptor descriptor{::open(directory.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC)};
+  FileDescriptor descriptor{
+      ::open(directory.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC)};
   if (descriptor.get() < 0) {
     throw std::system_error{errno, std::generic_category(),
                             "failed to open metadata directory for fsync"};
@@ -242,7 +254,8 @@ void sync_directory(const std::filesystem::path& directory) {
   sync_descriptor(descriptor.get(), "failed to fsync metadata directory");
 }
 
-void atomic_write(const std::filesystem::path& path, const std::span<const std::byte> bytes) {
+void atomic_write(const std::filesystem::path& path,
+                  const std::span<const std::byte> bytes) {
   const std::filesystem::path temporary = path.string() + ".tmp";
   std::error_code ignored;
   std::filesystem::remove(temporary, ignored);
@@ -259,11 +272,12 @@ void atomic_write(const std::filesystem::path& path, const std::span<const std::
     sync_descriptor(descriptor.get(), "failed to fsync metadata file");
     const int raw_descriptor = descriptor.release();
     if (::close(raw_descriptor) != 0) {
-      throw std::system_error{errno, std::generic_category(), "failed to close metadata file"};
+      throw std::system_error{errno, std::generic_category(),
+                              "failed to close metadata file"};
     }
     std::filesystem::rename(temporary, path);
-    const auto parent =
-        path.parent_path().empty() ? std::filesystem::path{"."} : path.parent_path();
+    const auto parent = path.parent_path().empty() ? std::filesystem::path{"."}
+                                                   : path.parent_path();
     sync_directory(parent);
   } catch (...) {
     std::filesystem::remove(temporary, ignored);
@@ -271,7 +285,8 @@ void atomic_write(const std::filesystem::path& path, const std::span<const std::
   }
 }
 
-[[nodiscard]] std::vector<std::byte> serialize_current(const std::string_view manifest_filename) {
+[[nodiscard]] std::vector<std::byte> serialize_current(
+    const std::string_view manifest_filename) {
   if (manifest_filename.empty() || manifest_filename.size() > kMaximumFilenameBytes) {
     throw std::invalid_argument{"manifest filename is invalid"};
   }
@@ -280,7 +295,9 @@ void atomic_write(const std::filesystem::path& path, const std::span<const std::
   bytes.insert(bytes.end(), kCurrentMagic.begin(), kCurrentMagic.end());
   append_uint16(bytes, kManifestVersion);
   append_uint16(bytes, 0U);
-  append_uint32(bytes, checked_uint32(manifest_filename.size(), "manifest filename is too large"));
+  append_uint32(bytes,
+                checked_uint32(manifest_filename.size(),
+                               "manifest filename is too large"));
   append_bytes(bytes, manifest_filename);
   append_checksum(bytes);
   return bytes;
@@ -304,13 +321,15 @@ void atomic_write(const std::filesystem::path& path, const std::span<const std::
     throw std::runtime_error{"CURRENT contains trailing data"};
   }
   const std::filesystem::path path{filename};
-  if (path.is_absolute() || path.has_parent_path() || filename.rfind("MANIFEST-", 0U) != 0U) {
+  if (path.is_absolute() || path.has_parent_path() ||
+      filename.rfind("MANIFEST-", 0U) != 0U) {
     throw std::runtime_error{"CURRENT contains an unsafe manifest filename"};
   }
   return filename;
 }
 
-[[nodiscard]] std::vector<std::byte> serialize_manifest(const ManifestSnapshot& snapshot) {
+[[nodiscard]] std::vector<std::byte> serialize_manifest(
+    const ManifestSnapshot& snapshot) {
   if (snapshot.generation == 0U || snapshot.next_file_id == 0U) {
     throw std::invalid_argument{"manifest counters must be non-zero"};
   }
@@ -325,13 +344,15 @@ void atomic_write(const std::filesystem::path& path, const std::span<const std::
   append_uint16(bytes, 0U);
   append_uint64(bytes, snapshot.generation);
   append_uint64(bytes, snapshot.next_file_id);
-  append_uint32(bytes, checked_uint32(snapshot.tables.size(), "manifest table count is too large"));
+  append_uint32(bytes,
+                checked_uint32(snapshot.tables.size(),
+                               "manifest table count is too large"));
   append_uint32(bytes, 0U);
 
   for (const SSTableMetadata& table : snapshot.tables) {
     const std::string filename = table.path.filename().string();
-    if (filename.empty() || filename.size() > kMaximumFilenameBytes || table.path.is_absolute() ||
-        table.path.has_parent_path()) {
+    if (filename.empty() || filename.size() > kMaximumFilenameBytes ||
+        table.path.is_absolute() || table.path.has_parent_path()) {
       throw std::invalid_argument{"manifest SSTable path must be a filename"};
     }
     if (!filenames.insert(filename).second) {
@@ -350,11 +371,12 @@ void atomic_write(const std::filesystem::path& path, const std::span<const std::
     append_uint32(bytes, table.block_count);
     append_uint64(bytes, table.min_sequence_number);
     append_uint64(bytes, table.max_sequence_number);
-    append_uint32(bytes, checked_uint32(filename.size(), "SSTable filename is too large"));
     append_uint32(bytes,
-                  checked_uint32(table.smallest_key.size(), "SSTable smallest key is too large"));
-    append_uint32(bytes,
-                  checked_uint32(table.largest_key.size(), "SSTable largest key is too large"));
+                  checked_uint32(filename.size(), "SSTable filename is too large"));
+    append_uint32(bytes, checked_uint32(table.smallest_key.size(),
+                                        "SSTable smallest key is too large"));
+    append_uint32(bytes, checked_uint32(table.largest_key.size(),
+                                        "SSTable largest key is too large"));
     append_bytes(bytes, filename);
     append_bytes(bytes, table.smallest_key);
     append_bytes(bytes, table.largest_key);
@@ -363,8 +385,9 @@ void atomic_write(const std::filesystem::path& path, const std::span<const std::
   return bytes;
 }
 
-[[nodiscard]] ManifestSnapshot parse_manifest(const std::vector<std::byte>& bytes,
-                                              const std::filesystem::path& directory) {
+[[nodiscard]] ManifestSnapshot parse_manifest(
+    const std::vector<std::byte>& bytes,
+    const std::filesystem::path& directory) {
   Decoder decoder{verified_payload(bytes)};
   decoder.expect_magic(kManifestMagic);
   if (decoder.read_uint16() != kManifestVersion) {
@@ -412,8 +435,8 @@ void atomic_write(const std::filesystem::path& path, const std::span<const std::
     const std::uint32_t filename_size = decoder.read_uint32();
     const std::uint32_t smallest_size = decoder.read_uint32();
     const std::uint32_t largest_size = decoder.read_uint32();
-    if (filename_size == 0U || filename_size > kMaximumFilenameBytes || smallest_size == 0U ||
-        largest_size == 0U) {
+    if (filename_size == 0U || filename_size > kMaximumFilenameBytes ||
+        smallest_size == 0U || largest_size == 0U) {
       throw std::runtime_error{"manifest contains invalid variable-length fields"};
     }
     const std::string filename = decoder.read_string(filename_size);
@@ -438,7 +461,8 @@ void atomic_write(const std::filesystem::path& path, const std::span<const std::
   return snapshot;
 }
 
-} // namespace
+
+}  // namespace
 
 ManifestManager::ManifestManager(std::filesystem::path directory)
     : directory_{std::move(directory)}, current_path_{directory_ / "CURRENT"} {
@@ -454,7 +478,8 @@ std::optional<ManifestSnapshot> ManifestManager::load() {
       const std::string filename = entry.path().filename().string();
       if (entry.is_regular_file() && filename.rfind("MANIFEST-", 0U) == 0U &&
           entry.path().extension() != ".tmp") {
-        throw std::runtime_error{"CURRENT is missing while versioned manifests are present"};
+        throw std::runtime_error{
+            "CURRENT is missing while versioned manifests are present"};
       }
     }
     return std::nullopt;
@@ -462,19 +487,22 @@ std::optional<ManifestSnapshot> ManifestManager::load() {
   const std::string filename = parse_current(read_file(current_path_));
   const std::filesystem::path path = directory_ / filename;
   if (!std::filesystem::exists(path)) {
-    throw std::runtime_error{"CURRENT references a missing manifest: " + path.string()};
+    throw std::runtime_error{"CURRENT references a missing manifest: " +
+                             path.string()};
   }
   ManifestSnapshot snapshot = parse_manifest(read_file(path), directory_);
 
   std::ostringstream expected_name;
-  expected_name << "MANIFEST-" << std::setw(20) << std::setfill('0') << snapshot.generation;
+  expected_name << "MANIFEST-" << std::setw(20) << std::setfill('0')
+                << snapshot.generation;
   if (filename != expected_name.str()) {
     throw std::runtime_error{"manifest filename does not match its generation"};
   }
 
   for (const SSTableMetadata& expected : snapshot.tables) {
     if (!std::filesystem::exists(expected.path)) {
-      throw std::runtime_error{"manifest references a missing SSTable: " + expected.path.string()};
+      throw std::runtime_error{"manifest references a missing SSTable: " +
+                               expected.path.string()};
     }
   }
 
@@ -483,13 +511,15 @@ std::optional<ManifestSnapshot> ManifestManager::load() {
   return snapshot;
 }
 
-ManifestSnapshot ManifestManager::commit(const std::vector<SSTableMetadata>& tables,
-                                         const std::uint64_t next_file_id) {
+ManifestSnapshot ManifestManager::commit(
+    const std::vector<SSTableMetadata>& tables,
+    const std::uint64_t next_file_id) {
   if (current_generation_ == std::numeric_limits<std::uint64_t>::max()) {
     throw std::overflow_error{"manifest generation space is exhausted"};
   }
   ManifestSnapshot snapshot{current_generation_ + 1U, next_file_id,
-                            std::vector<SSTableMetadata>{tables.cbegin(), tables.cend()}};
+                            std::vector<SSTableMetadata>{tables.cbegin(),
+                                                         tables.cend()}};
   for (SSTableMetadata& table : snapshot.tables) {
     table.path = table.path.filename();
   }
@@ -512,12 +542,15 @@ std::filesystem::path ManifestManager::active_manifest_path() const {
   return active_manifest_path_;
 }
 
-std::uint64_t ManifestManager::current_generation() const noexcept { return current_generation_; }
+std::uint64_t ManifestManager::current_generation() const noexcept {
+  return current_generation_;
+}
 
-std::filesystem::path ManifestManager::manifest_path(const std::uint64_t generation) const {
+std::filesystem::path ManifestManager::manifest_path(
+    const std::uint64_t generation) const {
   std::ostringstream filename;
   filename << "MANIFEST-" << std::setw(20) << std::setfill('0') << generation;
   return directory_ / filename.str();
 }
 
-} // namespace nebulakv
+}  // namespace nebulakv

@@ -1,51 +1,60 @@
 # NebulaKV
 
-NebulaKV is a modern C++20 key-value storage engine built around durability, concurrent access,
-and an LSM-tree architecture. It combines a checksummed write-ahead log, crash recovery, sorted
-MemTables, indexed SSTables, Bloom-filter negative lookups, a shared LRU block cache, atomic
-manifest management, and leveled compaction.
+NebulaKV is a C++20 key-value database with a durable LSM-tree storage engine and a concurrent
+gRPC API. It combines a checksummed write-ahead log, crash recovery, sorted MemTables, indexed
+SSTables, Bloom-filter negative lookups, an LRU block cache, atomic manifests, leveled compaction,
+and a bounded network execution layer.
 
-## Current capabilities
+## Capabilities
 
-- `KeyValueStore` abstraction with `put`, `get`, `remove`, and `exists`
-- Thread-safe hash-based reference store using `std::unordered_map` and `std::shared_mutex`
-- Sorted MemTables using `std::map`, monotonic sequence numbers, and tombstone deletion
-- Configurable MemTable rotation with active and immutable read coordination
-- Checksummed write-ahead log with `sync`, `batch`, and OS-buffered durability modes
-- Safe restart recovery, partial-tail handling, corruption detection, and repair controls
-- Versioned SSTables with checksummed data blocks, index blocks, headers, and footers
-- Indexed point lookups that avoid full-file scans
-- Atomic SSTable publication through temporary files, `fsync`, rename, and directory sync
-- Explicit checkpoints that persist active memory state before safely resetting the WAL
-- Custom Bloom filters with configurable false-positive rate and zero false negatives
-- Shared byte-bounded LRU data-block cache using `std::unordered_map`, `std::list`, and `std::mutex`
-- Level 0 and Level 1 SSTable organization
+- Protocol Buffers API for `Put`, `Get`, `Delete`, `BatchPut`, and `Status`
+- `nebulakv-server` and `nebulakv-cli` executables
+- Fixed worker pool with bounded request queue and overload backpressure
+- Per-request deadlines and gRPC status-code mapping
+- Configurable maximum transport and application message sizes
+- Graceful shutdown that drains accepted work and flushes acknowledged writes
+- Concurrent remote clients
+- Structured status responses with storage, cache, compaction, queue, and request metrics
+- Thread-safe in-memory reference store using `std::unordered_map` and `std::shared_mutex`
+- Sorted MemTables using `std::map`, monotonic sequence numbers, and tombstones
+- Checksummed WAL with `sync`, `batch`, and OS-buffered durability modes
+- Restart recovery with incomplete-tail and corruption handling
+- Versioned SSTables with checksummed data blocks, indexes, headers, and footers
+- Custom Bloom filters and a shared byte-bounded LRU block cache
 - Atomic `MANIFEST-*` and `CURRENT` metadata publication
-- Overlap-aware L0-to-L1 compaction
-- Newest-sequence resolution and safe tombstone retirement
-- Orphan-file cleanup after interrupted publication
-- Open-file reader snapshots that remain valid while obsolete SSTables are unlinked
-- Cache, Bloom-filter, and compaction statistics
-- Empty-key validation, 1 KiB key limit, and 1 MiB value limit
-- 162 unit and integration tests covering concurrency, recovery, corruption, caching, manifests,
-  and compaction
+- Overlap-aware L0-to-L1 compaction with safe tombstone retirement
 - GCC and Clang builds with warnings treated as errors
-- AddressSanitizer, UndefinedBehaviorSanitizer, and ThreadSanitizer presets
-- clang-format, clang-tidy, GoogleTest, Google Benchmark, and GitHub Actions
+- GoogleTest, Google Benchmark, sanitizers, clang-format, clang-tidy, and GitHub Actions
 
 ## Prerequisites
 
-Ubuntu or WSL2:
+Storage-only builds:
 
 ```bash
 sudo apt update
-sudo apt install -y build-essential clang clang-tidy clang-format cmake ninja-build git
+sudo apt install -y \
+  build-essential \
+  clang \
+  clang-tidy \
+  clang-format \
+  cmake \
+  ninja-build \
+  git
 ```
 
-CMake 3.22 or newer, Ninja, Git, and a C++20 compiler are required. The first configure fetches
-pinned GoogleTest or Google Benchmark sources through CMake `FetchContent`.
+Network builds also require Protocol Buffers and gRPC development packages:
 
-## Build and test
+```bash
+sudo apt install -y \
+  protobuf-compiler \
+  protobuf-compiler-grpc \
+  libprotobuf-dev \
+  libgrpc++-dev
+```
+
+CMake 3.22 or newer, Ninja, Git, and a C++20 compiler are required.
+
+## Storage build
 
 ```bash
 cmake --preset debug
@@ -53,123 +62,121 @@ cmake --build --preset debug
 ctest --preset debug
 ```
 
-Run the storage-engine demonstration:
+Run the local storage administration tool:
 
 ```bash
-./build/debug/nebulakv_cli
+./build/debug/nebulakv-storage
 ```
 
-Create a durable checkpoint:
+Create a checkpoint and run compaction:
 
 ```bash
-./build/debug/nebulakv_cli data/nebulakv.wal --checkpoint
+./build/debug/nebulakv-storage data/nebulakv.wal --checkpoint --compact
 ```
 
-Force an L0-to-L1 compaction:
+## Network build
 
 ```bash
-./build/debug/nebulakv_cli data/nebulakv.wal --checkpoint --compact
+cmake --preset network-release
+cmake --build --preset network-release
+ctest --preset network-release --output-on-failure
 ```
 
-The CLI reports the active manifest, level counts, cache statistics, Bloom-filter memory, and
-compaction counters.
-
-## Sanitizers
-
-```bash
-cmake --preset asan
-cmake --build --preset asan
-ctest --preset asan --output-on-failure
-
-cmake --preset tsan
-cmake --build --preset tsan
-ctest --preset tsan --output-on-failure
-```
-
-## Release build
-
-```bash
-cmake --preset release
-cmake --build --preset release
-ctest --preset release --output-on-failure
-```
-
-## Benchmarks
-
-```bash
-cmake --preset benchmark
-cmake --build --preset benchmark
-./build/benchmark/benchmarks/nebulakv_benchmarks
-```
-
-SSTable benchmarks separate:
-
-- Uncached indexed reads that perform file access, checksum validation, and decoding
-- Warm-cache reads that reuse immutable decoded blocks
-- Bloom-filter negative reads that avoid block I/O for definitely absent keys
-
-Run the read benchmarks with aggregate reporting:
-
-```bash
-./build/benchmark/benchmarks/nebulakv_benchmarks \
-  --benchmark_filter=sstable \
-  --benchmark_repetitions=5 \
-  --benchmark_report_aggregates_only=true
-```
-
-Run compaction benchmarks:
-
-```bash
-./build/benchmark/benchmarks/nebulakv_benchmarks \
-  --benchmark_filter=compaction \
-  --benchmark_repetitions=3 \
-  --benchmark_report_aggregates_only=true
-```
-
-Compaction output reports input-table count, input-entry count, output-entry count, and processed
-entries per second.
-
-## Formatting and static analysis
-
-```bash
-cmake --build --preset debug --target format
-cmake --build --preset debug --target format-check
-```
-
-clang-tidy runs as part of configured development builds.
-
-## Repository layout
+This build generates C++ Protocol Buffers and gRPC sources from:
 
 ```text
-.
-├── .github/workflows/ci.yml
-├── app/main.cpp
-├── benchmarks/
-│   ├── compaction_benchmark.cpp
-│   ├── key_value_store_benchmark.cpp
-│   └── sstable_benchmark.cpp
-├── cmake/
-├── include/nebulakv/
-│   ├── block_cache.hpp
-│   ├── bloom_filter.hpp
-│   ├── entry.hpp
-│   ├── key_value_store.hpp
-│   ├── manifest.hpp
-│   ├── memtable.hpp
-│   ├── memtable_set.hpp
-│   ├── persistent_key_value_store.hpp
-│   ├── recovery_manager.hpp
-│   ├── sstable_level.hpp
-│   ├── sstable_manager.hpp
-│   ├── sstable_reader.hpp
-│   ├── sstable_writer.hpp
-│   ├── wal_reader.hpp
-│   ├── wal_record.hpp
-│   └── wal_writer.hpp
-├── src/
-├── tests/
-├── CMakeLists.txt
-└── CMakePresets.json
+proto/nebulakv/v1/key_value_service.proto
+```
+
+## Start the server
+
+```bash
+./build/network-release/nebulakv-server \
+  --host 0.0.0.0 \
+  --port 5001 \
+  --data-dir data/server \
+  --workers 8 \
+  --queue-capacity 1024 \
+  --durability sync
+```
+
+Useful server options:
+
+```text
+--max-message-bytes <bytes>
+--max-batch-entries <count>
+--max-batch-bytes <bytes>
+--checkpoint-on-shutdown
+```
+
+Send `SIGINT` or `SIGTERM` for graceful shutdown. The server stops accepting new RPCs, drains
+accepted work, and flushes the WAL before exiting. With `--checkpoint-on-shutdown`, active memory
+state is also persisted to SSTables before the process exits.
+
+## Remote CLI
+
+```bash
+./build/network-release/nebulakv-cli --host 127.0.0.1 --port 5001 put user:1 Ansh
+./build/network-release/nebulakv-cli --host 127.0.0.1 --port 5001 get user:1
+./build/network-release/nebulakv-cli --host 127.0.0.1 --port 5001 delete user:1
+./build/network-release/nebulakv-cli --host 127.0.0.1 --port 5001 \
+  batch-put user:1 Ansh user:2 Sumeet
+./build/network-release/nebulakv-cli --host 127.0.0.1 --port 5001 status
+```
+
+Set a client deadline with:
+
+```bash
+./build/network-release/nebulakv-cli \
+  --timeout-ms 500 \
+  --host 127.0.0.1 \
+  --port 5001 \
+  get user:1
+```
+
+## RPC behaviour
+
+| RPC | Successful missing-key behaviour | Validation failure |
+|---|---|---|
+| `Put` | Not applicable | `INVALID_ARGUMENT` |
+| `Get` | `found=false` | `INVALID_ARGUMENT` |
+| `Delete` | `deleted=false` | `INVALID_ARGUMENT` |
+| `BatchPut` | Not applicable | `INVALID_ARGUMENT` |
+| `Status` | Returns service and storage metrics | Deadline status when expired |
+
+When the bounded worker queue is full, storage RPCs return `RESOURCE_EXHAUSTED`. Requests that
+expire before a worker begins execution return `DEADLINE_EXCEEDED`. The transport and service both
+enforce configurable message limits.
+
+`BatchPut` validates the entire batch before applying any writes. Once execution begins, entries
+are durably written in order; the operation is not a multi-key transaction.
+
+## Network execution path
+
+```text
+gRPC request
+      |
+Transport message-size limit
+      |
+Application request-size validation
+      |
+Deadline check
+      |
+Bounded request queue
+      |
+Queue full? ---------------- yes ---> RESOURCE_EXHAUSTED
+      |
+Worker thread
+      |
+Request validation
+      |
+WAL append and durability policy
+      |
+MemTable update
+      |
+Optional flush and compaction
+      |
+gRPC response
 ```
 
 ## Read path
@@ -185,8 +192,6 @@ Select candidate SSTables by key range
       |
 Bloom filter says definitely absent? ---- yes ---> skip table
       |
-      no
-      |
 Search in-memory block index
       |
 Check shared LRU block cache
@@ -198,114 +203,110 @@ Binary-search decoded data block
 Return newest sequence or tombstone
 ```
 
-## Write and checkpoint path
+## Status metrics
+
+The `Status` RPC exposes:
+
+- Live key count and latest sequence number
+- L0 and L1 SSTable counts
+- Cache hits, misses, evictions, and hit ratio
+- Completed compactions
+- Queued and active requests
+- Rejected requests
+- Total and failed RPC counts
+
+## Tests
+
+The storage presets run 172 unit and integration tests. Network-enabled presets add five in-process
+gRPC integration tests for remote CRUD, batch writes, status, deadlines, concurrent clients, and
+graceful durability, for a total of 177 tests.
+
+```bash
+ctest --preset debug --output-on-failure
+ctest --preset network-release --output-on-failure
+```
+
+## Sanitizers
+
+```bash
+cmake --preset asan
+cmake --build --preset asan
+ctest --preset asan --output-on-failure
+
+cmake --preset tsan
+cmake --build --preset tsan
+ctest --preset tsan --output-on-failure
+```
+
+The default sanitizer presets validate the storage engine and dependency-free service runtime.
+The network AddressSanitizer preset also runs the five in-process gRPC integration tests:
+
+```bash
+cmake --preset network-asan
+cmake --build --preset network-asan
+ctest --preset network-asan --output-on-failure
+```
+
+The network ThreadSanitizer preset builds the gRPC server and client but intentionally runs only the
+172 project-owned storage and service-runtime tests:
+
+```bash
+cmake --preset network-tsan
+cmake --build --preset network-tsan
+ctest --preset network-tsan --output-on-failure
+```
+
+Ubuntu's prebuilt gRPC and Abseil shared libraries are not compiled with the same ThreadSanitizer
+instrumentation as NebulaKV. Running the five in-process RPC tests against those binaries produces
+reports inside `libgrpc`, `libgpr`, and `libabsl_graphcycles_internal`, so those external-library
+integration tests remain covered by `network-release` and `network-asan` instead. NebulaKV's bounded
+executor, request processor, storage concurrency, compaction concurrency, and cache concurrency tests
+continue to run under ThreadSanitizer.
+
+## Benchmarks
+
+```bash
+cmake --preset benchmark
+cmake --build --preset benchmark
+./build/benchmark/benchmarks/nebulakv_benchmarks
+```
+
+Available benchmark groups include hash-store operations, sorted MemTables, indexed SSTable reads,
+cache hits, Bloom-filter negative lookups, and leveled compaction.
+
+## Repository layout
 
 ```text
-Validate request
-      |
-Append checksummed WAL record
-      |
-Apply configured durability policy
-      |
-Assign sequence number
-      |
-Update active sorted MemTable
-      |
-Rotate to immutable state at memory threshold
-      |
-Write checksummed L0 SSTable and publish a new manifest
-      |
-Checkpoint resets WAL only after persisted state is synchronized
+.
+├── app/main.cpp
+├── client/main.cpp
+├── server/main.cpp
+├── proto/nebulakv/v1/key_value_service.proto
+├── include/nebulakv/
+│   ├── network/
+│   │   ├── bounded_executor.hpp
+│   │   ├── grpc_client.hpp
+│   │   ├── grpc_server.hpp
+│   │   ├── grpc_service.hpp
+│   │   └── request_processor.hpp
+│   └── storage engine headers
+├── src/network/
+├── src/storage engine sources
+├── tests/
+├── benchmarks/
+├── CMakeLists.txt
+└── CMakePresets.json
 ```
-
-## Compaction path
-
-```text
-Select oldest L0 tables
-      |
-Expand selection with overlapping L1 tables
-      |
-Read and merge outside the manager write lock
-      |
-Keep the highest sequence for every key
-      |
-Retain tombstones that still protect older values
-      |
-Write and fsync a new L1 SSTable
-      |
-Write and fsync a new MANIFEST file
-      |
-Atomically replace CURRENT
-      |
-Swap the in-memory reader set
-      |
-Unlink obsolete SSTables
-```
-
-Existing reads retain shared `SSTableReader` instances with open file descriptors. On POSIX
-systems, those readers can finish safely after an obsolete file is unlinked. New reads observe the
-new manifest-backed reader set.
-
-## Manifest protocol
-
-The SSTable directory contains:
-
-```text
-CURRENT
-MANIFEST-00000000000000000001
-MANIFEST-00000000000000000002
-sstable-L0-....sst
-sstable-L1-....sst
-```
-
-`CURRENT` names the authoritative versioned manifest. Each manifest stores:
-
-- Manifest generation
-- Next unique SSTable file identifier
-- Active SSTable filenames
-- L0 or L1 assignment
-- Sequence range
-- Key range
-- Entry and block counts
-- CRC-32 checksum
-
-Publication order is deliberately crash-safe:
-
-1. Write, checksum, and synchronize the new SSTable.
-2. Write and synchronize a new versioned manifest.
-3. Atomically replace and synchronize `CURRENT`.
-4. Publish the new reader snapshot.
-5. Delete obsolete files.
-
-A crash before step 3 leaves the previous manifest authoritative. A crash after step 3 leaves the
-new manifest authoritative. Unreferenced SSTables are removed during startup only after the active
-manifest has loaded successfully.
-
-## Compaction configuration
-
-```cpp
-nebulakv::PersistentStoreOptions options;
-options.level0_compaction_trigger = 4;
-options.level0_compaction_max_tables = 4;
-options.enable_automatic_compaction = true;
-```
-
-Automatic compaction begins when the L0 table count reaches the configured trigger. Manual
-compaction is available through `PersistentKeyValueStore::compact()`.
 
 ## Correctness guarantees
 
-- Acknowledged synchronous writes are replayed after restart.
-- Incomplete final WAL records stop recovery safely.
-- WAL and SSTable checksum mismatches report their byte location.
-- Tombstones and sequence numbers survive restart.
+- Acknowledged synchronous writes are recoverable after restart.
+- Graceful shutdown flushes accepted writes in every durability mode.
+- Incomplete WAL tails and malformed records are handled without process crashes.
+- WAL and SSTable checksums detect corruption.
+- Sequence numbers and tombstones survive restarts and compaction.
 - Bloom filters never classify an inserted key as definitely absent.
-- Cached data blocks are immutable and shared safely between concurrent readers.
-- Cache eviction follows least-recently-used ordering under a configurable byte limit.
-- The database opens active SSTables from `CURRENT` and its manifest rather than trusting a
-  directory scan.
-- L1 key ranges do not overlap.
-- Compaction keeps the newest sequence for every key.
-- Tombstones are removed only when no unselected older value can become visible.
-- A manifest switch occurs before obsolete SSTables are removed.
-- Interrupted publication leaves either the previous or the new complete table set recoverable.
+- Cached blocks are immutable and safely shared across readers.
+- Manifest publication occurs before obsolete SSTables are removed.
+- The network queue is bounded, and overload is reported rather than growing memory without limit.
+- Invalid requests map to explicit gRPC status codes.

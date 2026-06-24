@@ -16,4 +16,4 @@ struct WalRecord {
   std::string value;
 };
 
-} // namespace nebulakv
+}  // namespace nebulakv

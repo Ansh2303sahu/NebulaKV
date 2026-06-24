@@ -16,7 +16,7 @@ struct BloomFilterStatistics {
 };
 
 class BloomFilter final {
-public:
+ public:
   BloomFilter(std::size_t expected_entries, double false_positive_rate);
 
   void add(std::string_view key);
@@ -24,7 +24,7 @@ public:
   [[nodiscard]] bool may_contain(std::string_view key) const noexcept;
   [[nodiscard]] BloomFilterStatistics statistics() const noexcept;
 
-private:
+ private:
   [[nodiscard]] static std::uint64_t primary_hash(std::string_view key) noexcept;
   [[nodiscard]] static std::uint64_t secondary_hash(std::string_view key) noexcept;
   [[nodiscard]] std::size_t bit_index(std::uint64_t first, std::uint64_t second,
@@ -37,4 +37,4 @@ private:
   double target_false_positive_rate_{0.0};
 };
 
-} // namespace nebulakv
+}  // namespace nebulakv

@@ -110,3 +110,33 @@ jobs:
 
       - name: Build
         run: cmake --build --preset benchmark --parallel 2
+
+  network-service:
+    name: gRPC server and client
+    runs-on: ubuntu-24.04
+    env:
+      CC: gcc
+      CXX: g++
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Install gRPC and Protocol Buffers
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes \
+            ninja-build \
+            protobuf-compiler \
+            protobuf-compiler-grpc \
+            libprotobuf-dev \
+            libgrpc++-dev
+
+      - name: Configure
+        run: cmake --preset network-release
+
+      - name: Build
+        run: cmake --build --preset network-release --parallel 2
+
+      - name: Test
+        run: ctest --preset network-release

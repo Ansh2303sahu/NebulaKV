@@ -18,7 +18,8 @@
 namespace nebulakv {
 namespace {
 
-std::shared_ptr<MemTable> immutable_table(const std::uint64_t generation, const std::string& key,
+std::shared_ptr<MemTable> immutable_table(const std::uint64_t generation,
+                                          const std::string& key,
                                           const Entry& entry) {
   auto table = std::make_shared<MemTable>(generation);
   if (entry.deleted) {
@@ -30,8 +31,8 @@ std::shared_ptr<MemTable> immutable_table(const std::uint64_t generation, const 
   return table;
 }
 
-std::shared_ptr<MemTable> immutable_table_with_even_keys(const std::uint64_t generation,
-                                                         const std::size_t count) {
+std::shared_ptr<MemTable> immutable_table_with_even_keys(
+    const std::uint64_t generation, const std::size_t count) {
   auto table = std::make_shared<MemTable>(generation);
   for (std::size_t index = 0; index < count; ++index) {
     const std::string key = "key-" + std::to_string(index * 2U + 1000U);
@@ -41,18 +42,19 @@ std::shared_ptr<MemTable> immutable_table_with_even_keys(const std::uint64_t gen
   return table;
 }
 
-std::shared_ptr<MemTable> immutable_table_with_range(const std::uint64_t generation,
-                                                     const std::string& prefix,
-                                                     const std::size_t count,
-                                                     const std::uint64_t sequence_base) {
+std::shared_ptr<MemTable> immutable_table_with_range(
+    const std::uint64_t generation, const std::string& prefix,
+    const std::size_t count, const std::uint64_t sequence_base) {
   auto table = std::make_shared<MemTable>(generation);
   for (std::size_t index = 0; index < count; ++index) {
     const std::string key = prefix + std::to_string(100000U + index);
-    table->put(key, "value-" + std::to_string(generation), sequence_base + index + 1U);
+    table->put(key, "value-" + std::to_string(generation),
+               sequence_base + index + 1U);
   }
   table->freeze();
   return table;
 }
+
 
 TEST(SSTableManagerTest, FlushesAndLoadsTableAfterRestart) {
   test::TemporaryDirectory directory;
@@ -173,7 +175,8 @@ TEST(SSTableManagerTest, ReportsBloomFilterMemoryUsageAfterRestart) {
   }
 
   SSTableManager reopened{{directory.path(), 256U}};
-  const BloomFilterAggregateStatistics statistics = reopened.bloom_filter_statistics();
+  const BloomFilterAggregateStatistics statistics =
+      reopened.bloom_filter_statistics();
   EXPECT_EQ(statistics.filter_count, 1U);
   EXPECT_EQ(statistics.inserted_keys, 100U);
   EXPECT_GT(statistics.memory_bytes, 0U);
@@ -267,14 +270,16 @@ TEST(SSTableManagerTest, NonOverlappingCompactionsCreateSeparateLevelOneTables) 
   test::TemporaryDirectory directory;
   SSTableManager manager{{directory.path(), 128U}};
   for (std::uint64_t generation = 1U; generation <= 4U; ++generation) {
-    static_cast<void>(manager.flush(*immutable_table(generation, "a" + std::to_string(generation),
-                                                     Entry{"left", generation, false})));
+    static_cast<void>(manager.flush(*immutable_table(
+        generation, "a" + std::to_string(generation),
+        Entry{"left", generation, false})));
   }
   static_cast<void>(manager.compact_if_needed());
 
   for (std::uint64_t generation = 5U; generation <= 8U; ++generation) {
-    static_cast<void>(manager.flush(*immutable_table(generation, "z" + std::to_string(generation),
-                                                     Entry{"right", generation, false})));
+    static_cast<void>(manager.flush(*immutable_table(
+        generation, "z" + std::to_string(generation),
+        Entry{"right", generation, false})));
   }
   static_cast<void>(manager.compact_if_needed());
 
@@ -288,7 +293,8 @@ TEST(SSTableManagerTest, CompactedStateLoadsFromManifestAfterRestart) {
     SSTableManager manager{{directory.path(), 128U}};
     for (std::uint64_t generation = 1U; generation <= 4U; ++generation) {
       static_cast<void>(manager.flush(*immutable_table(
-          generation, "key", Entry{"value-" + std::to_string(generation), generation, false})));
+          generation, "key", Entry{"value-" + std::to_string(generation),
+                                    generation, false})));
     }
     static_cast<void>(manager.compact_if_needed());
   }
@@ -304,8 +310,8 @@ TEST(SSTableManagerTest, ManifestIgnoresAndRemovesOrphanSSTable) {
   test::TemporaryDirectory directory;
   {
     SSTableManager manager{{directory.path(), 128U}};
-    static_cast<void>(
-        manager.flush(*immutable_table(1U, "key", Entry{"manifest-value", 1U, false})));
+    static_cast<void>(manager.flush(*immutable_table(
+        1U, "key", Entry{"manifest-value", 1U, false})));
   }
 
   MemTable::Snapshot orphan_entries{{"key", Entry{"orphan-value", 100U, false}}};
@@ -326,13 +332,17 @@ TEST(SSTableManagerTest, MissingManifestTableFailsStartup) {
   std::filesystem::path active_table;
   {
     SSTableManager manager{{directory.path(), 128U}};
-    static_cast<void>(manager.flush(*immutable_table(1U, "key", Entry{"value", 1U, false})));
+    static_cast<void>(manager.flush(*immutable_table(
+        1U, "key", Entry{"value", 1U, false})));
     active_table = manager.metadata().front().path;
   }
   ASSERT_TRUE(std::filesystem::remove(active_table));
 
-  EXPECT_THROW((SSTableManager{SSTableManagerOptions{directory.path(), 128U}}), std::runtime_error);
+  EXPECT_THROW((SSTableManager{SSTableManagerOptions{directory.path(), 128U}}),
+               std::runtime_error);
 }
+
+
 
 TEST(SSTableManagerTest, MissingCurrentWithExistingManifestFailsStartup) {
   test::TemporaryDirectory directory;
@@ -343,7 +353,8 @@ TEST(SSTableManagerTest, MissingCurrentWithExistingManifestFailsStartup) {
   }
   ASSERT_TRUE(std::filesystem::remove(current));
 
-  EXPECT_THROW((SSTableManager{SSTableManagerOptions{directory.path(), 128U}}), std::runtime_error);
+  EXPECT_THROW((SSTableManager{SSTableManagerOptions{directory.path(), 128U}}),
+               std::runtime_error);
 }
 
 TEST(SSTableManagerTest, CorruptedCurrentFailsStartup) {
@@ -358,7 +369,8 @@ TEST(SSTableManagerTest, CorruptedCurrentFailsStartup) {
   bytes.back() ^= std::byte{0xFF};
   test::write_file(current, bytes);
 
-  EXPECT_THROW((SSTableManager{SSTableManagerOptions{directory.path(), 128U}}), std::runtime_error);
+  EXPECT_THROW((SSTableManager{SSTableManagerOptions{directory.path(), 128U}}),
+               std::runtime_error);
 }
 
 TEST(SSTableManagerTest, CorruptedManifestFailsStartup) {
@@ -373,7 +385,8 @@ TEST(SSTableManagerTest, CorruptedManifestFailsStartup) {
   bytes.back() ^= std::byte{0xAA};
   test::write_file(manifest, bytes);
 
-  EXPECT_THROW((SSTableManager{SSTableManagerOptions{directory.path(), 128U}}), std::runtime_error);
+  EXPECT_THROW((SSTableManager{SSTableManagerOptions{directory.path(), 128U}}),
+               std::runtime_error);
 }
 
 TEST(SSTableManagerTest, MigratesLegacyDirectoryIntoManifest) {
@@ -397,8 +410,8 @@ TEST(SSTableManagerTest, ConcurrentReadsRemainAvailableDuringCompaction) {
   test::TemporaryDirectory directory;
   SSTableManager manager{{directory.path(), 1024U}};
   for (std::uint64_t generation = 1U; generation <= 4U; ++generation) {
-    static_cast<void>(manager.flush(
-        *immutable_table_with_range(generation, "key-", 3000U, (generation - 1U) * 3000U)));
+    static_cast<void>(manager.flush(*immutable_table_with_range(
+        generation, "key-", 3000U, (generation - 1U) * 3000U)));
   }
 
   std::atomic<bool> stop{false};
@@ -432,7 +445,8 @@ TEST(SSTableManagerTest, ReportsCompactionStatistics) {
   SSTableManager manager{{directory.path(), 128U}};
   for (std::uint64_t generation = 1U; generation <= 4U; ++generation) {
     static_cast<void>(manager.flush(*immutable_table(
-        generation, "key-" + std::to_string(generation), Entry{"value", generation, false})));
+        generation, "key-" + std::to_string(generation),
+        Entry{"value", generation, false})));
   }
   const CompactionResult result = manager.compact_if_needed();
   const CompactionStatistics statistics = manager.compaction_statistics();
@@ -445,5 +459,5 @@ TEST(SSTableManagerTest, ReportsCompactionStatistics) {
   EXPECT_EQ(statistics.output_entries, result.output_entries);
 }
 
-} // namespace
-} // namespace nebulakv
+}  // namespace
+}  // namespace nebulakv

@@ -28,10 +28,10 @@ struct RecoveryReport {
 };
 
 class RecoveryManager final {
-public:
+ public:
   [[nodiscard]] static RecoveryReport recover(const std::filesystem::path& wal_path,
                                               KeyValueStore& destination,
                                               RecoveryOptions options = {});
 };
 
-} // namespace nebulakv
+}  // namespace nebulakv

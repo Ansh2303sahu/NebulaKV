@@ -49,7 +49,8 @@ void append_uint64(std::vector<std::byte>& destination, std::uint64_t value);
 [[nodiscard]] std::uint64_t read_uint64(std::span<const std::byte> bytes);
 
 [[nodiscard]] std::vector<std::byte> serialize_header(const Header& header);
-[[nodiscard]] Header parse_header(std::span<const std::byte> bytes, std::uint64_t file_offset = 0);
+[[nodiscard]] Header parse_header(std::span<const std::byte> bytes,
+                                  std::uint64_t file_offset = 0);
 [[nodiscard]] std::vector<std::byte> serialize_data_block(const DataBlock& block);
 [[nodiscard]] DataBlock parse_data_block(std::span<const std::byte> bytes,
                                          std::uint64_t file_offset);
@@ -62,4 +63,4 @@ void append_uint64(std::vector<std::byte>& destination, std::uint64_t value);
 
 [[nodiscard]] std::size_t encoded_record_size(const DataBlock::Record& record) noexcept;
 
-} // namespace nebulakv::sstable_format
+}  // namespace nebulakv::sstable_format

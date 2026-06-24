@@ -5,10 +5,12 @@ file(
   CONFIGURE_DEPENDS
   "${PROJECT_SOURCE_DIR}/app/*.cpp"
   "${PROJECT_SOURCE_DIR}/benchmarks/*.cpp"
+  "${PROJECT_SOURCE_DIR}/client/*.cpp"
   "${PROJECT_SOURCE_DIR}/include/*.h"
   "${PROJECT_SOURCE_DIR}/include/*.hpp"
   "${PROJECT_SOURCE_DIR}/src/*.cpp"
   "${PROJECT_SOURCE_DIR}/src/*.hpp"
+  "${PROJECT_SOURCE_DIR}/server/*.cpp"
   "${PROJECT_SOURCE_DIR}/tests/*.cpp"
   "${PROJECT_SOURCE_DIR}/tests/*.hpp")
 

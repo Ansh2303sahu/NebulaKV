@@ -184,7 +184,8 @@ TEST(InMemoryKeyValueStoreTest, RemovingOneKeyDoesNotRemoveOthers) {
 }
 
 TEST(InMemoryKeyValueStoreTest, WorksThroughKeyValueStoreInterface) {
-  const std::unique_ptr<nebulakv::KeyValueStore> store = std::make_unique<InMemoryKeyValueStore>();
+  const std::unique_ptr<nebulakv::KeyValueStore> store =
+      std::make_unique<InMemoryKeyValueStore>();
 
   store->put("interface", "works");
 
@@ -348,4 +349,4 @@ TEST(InMemoryKeyValueStoreTest, ConcurrentRemovalsDeleteEveryKeyOnce) {
   EXPECT_EQ(store.size(), 0U);
 }
 
-} // namespace
+}  // namespace

@@ -58,7 +58,7 @@ struct CompactionStatistics {
 };
 
 class SSTableManager final {
-public:
+ public:
   explicit SSTableManager(SSTableManagerOptions options);
 
   [[nodiscard]] SSTableMetadata flush(const MemTable& table);
@@ -83,7 +83,7 @@ public:
   void clear_block_cache();
   void reset_read_statistics();
 
-private:
+ private:
   struct ManagedTable {
     std::shared_ptr<SSTableReader> reader;
     SSTableLevel level{SSTableLevel::Level0};
@@ -100,19 +100,22 @@ private:
   void load_manifest_snapshot(const ManifestSnapshot& snapshot);
   void migrate_legacy_tables();
   void cleanup_abandoned_files(const std::vector<SSTableMetadata>& active_tables) const;
-  void publish_tables_locked(std::vector<ManagedTable> tables, std::size_t live_key_count);
+  void publish_tables_locked(std::vector<ManagedTable> tables,
+                             std::size_t live_key_count);
   void recalculate_state_locked();
-  [[nodiscard]] CompactionSelection select_level0_compaction_locked(bool force_all) const;
-  [[nodiscard]] bool can_drop_tombstone(std::string_view key, const Entry& tombstone,
-                                        const std::vector<ManagedTable>& unselected) const;
-  [[nodiscard]] std::vector<SSTableMetadata>
-  metadata_for(const std::vector<ManagedTable>& tables) const;
+  [[nodiscard]] CompactionSelection select_level0_compaction_locked(
+      bool force_all) const;
+  [[nodiscard]] bool can_drop_tombstone(
+      std::string_view key, const Entry& tombstone,
+      const std::vector<ManagedTable>& unselected) const;
+  [[nodiscard]] std::vector<SSTableMetadata> metadata_for(
+      const std::vector<ManagedTable>& tables) const;
   [[nodiscard]] std::uint64_t reserve_file_id();
-  [[nodiscard]] std::filesystem::path table_path(SSTableLevel level, std::uint64_t file_id,
-                                                 std::uint64_t generation,
-                                                 std::uint64_t max_sequence) const;
-  [[nodiscard]] std::shared_ptr<const BloomFilter>
-  build_bloom_filter(const MemTable::Snapshot& snapshot) const;
+  [[nodiscard]] std::filesystem::path table_path(
+      SSTableLevel level, std::uint64_t file_id, std::uint64_t generation,
+      std::uint64_t max_sequence) const;
+  [[nodiscard]] std::shared_ptr<const BloomFilter> build_bloom_filter(
+      const MemTable::Snapshot& snapshot) const;
 
   const std::filesystem::path directory_;
   const std::size_t target_data_block_bytes_{0};
@@ -132,4 +135,4 @@ private:
   std::uint64_t state_version_{0};
 };
 
-} // namespace nebulakv
+}  // namespace nebulakv
