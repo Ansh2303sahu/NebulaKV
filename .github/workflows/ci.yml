@@ -58,7 +58,7 @@ jobs:
           sudo apt-get install --yes ninja-build clang-format-18
 
       - name: Configure
-        run: cmake --preset debug -DENABLE_CLANG_TIDY=OFF -DCLANG_FORMAT_EXECUTABLE=/usr/bin/clang-format-18
+        run: cmake --preset debug -DENABLE_CLANG_TIDY=OFF -DNEBULAKV_CLANG_FORMAT_EXECUTABLE=/usr/bin/clang-format-18
 
       - name: Check formatting
         run: cmake --build --preset debug --target format-check

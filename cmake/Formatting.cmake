@@ -16,9 +16,18 @@ file(
   "${PROJECT_SOURCE_DIR}/tests/*.hpp"
   "${PROJECT_SOURCE_DIR}/tools/*.cpp")
 
-find_program(
-  CLANG_FORMAT_EXECUTABLE
-  NAMES clang-format-18 clang-format clang-format-20 clang-format-19 clang-format-17)
+set(
+  NEBULAKV_CLANG_FORMAT_EXECUTABLE
+  ""
+  CACHE FILEPATH "Exact clang-format executable used by format targets")
+
+if(NEBULAKV_CLANG_FORMAT_EXECUTABLE)
+  set(CLANG_FORMAT_EXECUTABLE "${NEBULAKV_CLANG_FORMAT_EXECUTABLE}")
+else()
+  find_program(
+    CLANG_FORMAT_EXECUTABLE
+    NAMES clang-format-18 clang-format clang-format-20 clang-format-19 clang-format-17)
+endif()
 
 if(CLANG_FORMAT_EXECUTABLE)
   add_custom_target(
