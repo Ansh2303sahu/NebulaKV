@@ -23,13 +23,17 @@ add_executable(
   memtable_set_test.cpp
   persistent_key_value_store_test.cpp
   recovery_manager_test.cpp
+  raft_node_test.cpp
+  raft_storage_test.cpp
+  raft_snapshot_test.cpp
+  observability_test.cpp
   request_processor_test.cpp
   sstable_manager_test.cpp
   sstable_writer_reader_test.cpp
   wal_writer_reader_test.cpp)
 target_link_libraries(
   nebulakv_tests
-  PRIVATE NebulaKV::core NebulaKV::service_runtime GTest::gtest_main)
+  PRIVATE NebulaKV::core NebulaKV::service_runtime NebulaKV::raft GTest::gtest_main)
 
 if(ENABLE_GRPC AND ENABLE_GRPC_INTEGRATION_TESTS)
   target_sources(nebulakv_tests PRIVATE grpc_service_test.cpp)

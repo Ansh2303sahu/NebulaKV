@@ -2,8 +2,8 @@ cmake_minimum_required(VERSION 3.22)
 
 project(
   NebulaKV
-  VERSION 0.8.0
-  DESCRIPTION "Durable networked LSM-tree key-value database built in modern C++"
+  VERSION 1.0.0
+  DESCRIPTION "Distributed Raft-replicated LSM-tree key-value database built in modern C++"
   LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -85,6 +85,26 @@ target_compile_features(nebulakv_service_runtime PUBLIC cxx_std_20)
 target_link_libraries(nebulakv_service_runtime PUBLIC NebulaKV::core)
 configure_project_target(nebulakv_service_runtime)
 
+add_library(
+  nebulakv_raft
+  src/observability/json_logger.cpp
+  src/observability/metrics.cpp
+  src/observability/metrics_http_server.cpp
+  src/raft/fault_injecting_transport.cpp
+  src/raft/in_memory_transport.cpp
+  src/raft/node.cpp
+  src/raft/state_machine.cpp
+  src/raft/storage.cpp
+  src/raft/types.cpp)
+add_library(NebulaKV::raft ALIAS nebulakv_raft)
+target_include_directories(
+  nebulakv_raft
+  PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+         $<INSTALL_INTERFACE:include>)
+target_compile_features(nebulakv_raft PUBLIC cxx_std_20)
+target_link_libraries(nebulakv_raft PUBLIC NebulaKV::core Threads::Threads)
+configure_project_target(nebulakv_raft)
+
 if(ENABLE_GRPC)
   find_package(Protobuf REQUIRED)
   find_package(gRPC CONFIG REQUIRED)
@@ -140,6 +160,11 @@ if(ENABLE_GRPC)
 
   add_library(
     nebulakv_network
+    src/distributed/cluster_client.cpp
+    src/distributed/cluster_server.cpp
+    src/distributed/cluster_service.cpp
+    src/distributed/grpc_raft_transport.cpp
+    src/distributed/raft_grpc_service.cpp
     src/network/grpc_client.cpp
     src/network/grpc_server.cpp
     src/network/grpc_service.cpp)
@@ -151,7 +176,7 @@ if(ENABLE_GRPC)
   target_compile_features(nebulakv_network PUBLIC cxx_std_20)
   target_link_libraries(
     nebulakv_network
-    PUBLIC NebulaKV::service_runtime NebulaKV::rpc gRPC::grpc++)
+    PUBLIC NebulaKV::service_runtime NebulaKV::raft NebulaKV::rpc gRPC::grpc++)
   configure_project_target(nebulakv_network)
 
   add_executable(nebulakv_server server/main.cpp)
@@ -163,6 +188,16 @@ if(ENABLE_GRPC)
   set_target_properties(nebulakv_cli PROPERTIES OUTPUT_NAME "nebulakv-cli")
   target_link_libraries(nebulakv_cli PRIVATE NebulaKV::network)
   configure_project_target(nebulakv_cli)
+
+  add_executable(nebulakv_node cluster/main.cpp)
+  set_target_properties(nebulakv_node PROPERTIES OUTPUT_NAME "nebulakv-node")
+  target_link_libraries(nebulakv_node PRIVATE NebulaKV::network)
+  configure_project_target(nebulakv_node)
+
+  add_executable(nebulakv_workload tools/workload_main.cpp)
+  set_target_properties(nebulakv_workload PROPERTIES OUTPUT_NAME "nebulakv-benchmark")
+  target_link_libraries(nebulakv_workload PRIVATE NebulaKV::network)
+  configure_project_target(nebulakv_workload)
 endif()
 
 include(CTest)

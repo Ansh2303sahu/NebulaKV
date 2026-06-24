@@ -196,7 +196,6 @@ TEST(PersistentKeyValueStoreTest, RepairsIncompleteTailBeforeAcceptingNewWrites)
   EXPECT_FALSE(recovered.exists("second"));
 }
 
-
 TEST(PersistentKeyValueStoreTest, RefusesWritesWhenInvalidTailRepairIsDisabled) {
   TemporaryDirectory directory;
   const auto path = directory.file("database.wal");
@@ -227,7 +226,6 @@ TEST(PersistentKeyValueStoreTest, RestoresAcknowledgedWritesAfterAbruptExit) {
     EXPECT_EQ(recovered.get(key), "value-" + std::to_string(index));
   }
 }
-
 
 TEST(PersistentKeyValueStoreTest, ContinuesSequenceNumbersAfterRecovery) {
   TemporaryDirectory directory;
@@ -272,7 +270,6 @@ TEST(PersistentKeyValueStoreTest, AutomaticRotationPersistsSortedMemTables) {
   EXPECT_EQ(recovered.sstable_count(), 3U);
   EXPECT_EQ(recovered.active_memtable_memory_usage(), 0U);
 }
-
 
 TEST(PersistentKeyValueStoreTest, CheckpointPersistsStateAndResetsWal) {
   TemporaryDirectory directory;
@@ -384,8 +381,7 @@ TEST(PersistentKeyValueStoreTest, CorruptedSSTableFailsStartupClearly) {
   const auto size = std::filesystem::file_size(table_path);
   std::filesystem::resize_file(table_path, size - 4U);
 
-  EXPECT_THROW(PersistentKeyValueStore recovered{options},
-               nebulakv::SSTableCorruptionError);
+  EXPECT_THROW(PersistentKeyValueStore recovered{options}, nebulakv::SSTableCorruptionError);
 }
 
 TEST(PersistentKeyValueStoreTest, CheckpointSupportsMultipleDataBlocks) {
@@ -396,8 +392,7 @@ TEST(PersistentKeyValueStoreTest, CheckpointSupportsMultipleDataBlocks) {
 
   PersistentKeyValueStore store{options};
   for (std::size_t index = 0; index < 50U; ++index) {
-    store.put("key-" + std::to_string(1000U + index),
-              "value-" + std::to_string(index));
+    store.put("key-" + std::to_string(1000U + index), "value-" + std::to_string(index));
   }
   store.checkpoint();
 
@@ -405,7 +400,6 @@ TEST(PersistentKeyValueStoreTest, CheckpointSupportsMultipleDataBlocks) {
   EXPECT_GT(store.sstable_metadata().front().block_count, 1U);
   EXPECT_EQ(store.get("key-1025"), "value-25");
 }
-
 
 TEST(PersistentKeyValueStoreTest, AutomaticallyCompactsLevelZeroTables) {
   TemporaryDirectory directory;
@@ -490,8 +484,7 @@ TEST(PersistentKeyValueStoreTest, ExposesManifestAndLevelMetadata) {
   EXPECT_TRUE(std::filesystem::exists(store.current_path()));
   EXPECT_TRUE(std::filesystem::exists(store.active_manifest_path()));
   ASSERT_EQ(store.sstable_metadata().size(), 1U);
-  EXPECT_EQ(store.sstable_metadata().front().level,
-            nebulakv::SSTableLevel::Level0);
+  EXPECT_EQ(store.sstable_metadata().front().level, nebulakv::SSTableLevel::Level0);
 }
 
-}  // namespace
+} // namespace

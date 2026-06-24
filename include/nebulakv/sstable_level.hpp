@@ -10,15 +10,14 @@ enum class SSTableLevel : std::uint8_t {
   Level1 = 1,
 };
 
-[[nodiscard]] constexpr std::string_view to_string(
-    const SSTableLevel level) noexcept {
+[[nodiscard]] constexpr std::string_view to_string(const SSTableLevel level) noexcept {
   switch (level) {
-    case SSTableLevel::Level0:
-      return "L0";
-    case SSTableLevel::Level1:
-      return "L1";
+  case SSTableLevel::Level0:
+    return "L0";
+  case SSTableLevel::Level1:
+    return "L1";
   }
   return "unknown";
 }
 
-}  // namespace nebulakv
+} // namespace nebulakv

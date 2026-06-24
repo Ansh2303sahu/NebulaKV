@@ -19,8 +19,8 @@ namespace nebulakv {
 
 namespace {
 
-[[nodiscard]] std::filesystem::path resolve_sstable_directory(
-    const PersistentStoreOptions& options) {
+[[nodiscard]] std::filesystem::path
+resolve_sstable_directory(const PersistentStoreOptions& options) {
   if (!options.sstable_directory.empty()) {
     return options.sstable_directory;
   }
@@ -28,9 +28,9 @@ namespace {
   return (parent.empty() ? std::filesystem::path{"."} : parent) / "sstables";
 }
 
-[[nodiscard]] std::optional<Entry> latest_entry(
-    const MemTableSet& memtables, const SSTableManager& sstables,
-    const std::string_view key) {
+[[nodiscard]] std::optional<Entry> latest_entry(const MemTableSet& memtables,
+                                                const SSTableManager& sstables,
+                                                const std::string_view key) {
   if (const auto memory_entry = memtables.latest_entry(key)) {
     return memory_entry;
   }
@@ -38,7 +38,7 @@ namespace {
 }
 
 class RecoveryDestination final : public KeyValueStore {
- public:
+public:
   RecoveryDestination(MemTableSet& memtables, const SSTableManager& sstables,
                       std::atomic<std::size_t>& live_key_count)
       : memtables_{memtables}, sstables_{sstables}, live_key_count_{live_key_count} {}
@@ -73,28 +73,26 @@ class RecoveryDestination final : public KeyValueStore {
     return entry && !entry->deleted;
   }
 
- private:
+private:
   MemTableSet& memtables_;
   const SSTableManager& sstables_;
   std::atomic<std::size_t>& live_key_count_;
 };
 
-}  // namespace
+} // namespace
 
 PersistentKeyValueStore::PersistentKeyValueStore(PersistentStoreOptions options)
     : sstables_{SSTableManagerOptions{
           resolve_sstable_directory(options), options.sstable_data_block_bytes,
           options.block_cache_capacity_bytes, options.bloom_false_positive_rate,
-          options.level0_compaction_trigger,
-          options.level0_compaction_max_tables}},
+          options.level0_compaction_trigger, options.level0_compaction_max_tables}},
       automatic_compaction_enabled_{options.enable_automatic_compaction} {
   if (options.wal_path.empty()) {
     throw std::invalid_argument{"WAL path must not be empty"};
   }
 
   memtables_ = std::make_unique<MemTableSet>(MemTableOptions{
-      options.memtable_max_bytes, sstables_.max_sequence_number(),
-      sstables_.next_generation()});
+      options.memtable_max_bytes, sstables_.max_sequence_number(), sstables_.next_generation()});
   live_key_count_.store(sstables_.live_key_count(), std::memory_order_relaxed);
 
   RecoveryOptions recovery_options;
@@ -104,8 +102,7 @@ PersistentKeyValueStore::PersistentKeyValueStore(PersistentStoreOptions options)
   RecoveryDestination recovery_destination{*memtables_, sstables_, live_key_count_};
   recovery_report_ =
       RecoveryManager::recover(options.wal_path, recovery_destination, recovery_options);
-  if (recovery_report_.issue &&
-      recovery_report_.issue->code == WalReadIssueCode::IoError) {
+  if (recovery_report_.issue && recovery_report_.issue->code == WalReadIssueCode::IoError) {
     throw std::runtime_error{"failed to read the write-ahead log during recovery"};
   }
   if (recovery_report_.issue && !recovery_report_.invalid_tail_truncated) {
@@ -207,9 +204,7 @@ std::size_t PersistentKeyValueStore::active_memtable_memory_usage() const {
   return memtables_->active_memory_usage();
 }
 
-std::size_t PersistentKeyValueStore::sstable_count() const {
-  return sstables_.table_count();
-}
+std::size_t PersistentKeyValueStore::sstable_count() const { return sstables_.table_count(); }
 
 std::size_t PersistentKeyValueStore::level0_sstable_count() const {
   return sstables_.level_table_count(SSTableLevel::Level0);
@@ -227,8 +222,7 @@ BlockCacheStatistics PersistentKeyValueStore::block_cache_statistics() const {
   return sstables_.block_cache_statistics();
 }
 
-BloomFilterAggregateStatistics
-PersistentKeyValueStore::bloom_filter_statistics() const {
+BloomFilterAggregateStatistics PersistentKeyValueStore::bloom_filter_statistics() const {
   return sstables_.bloom_filter_statistics();
 }
 
@@ -238,9 +232,7 @@ CompactionStatistics PersistentKeyValueStore::compaction_statistics() const {
 
 void PersistentKeyValueStore::clear_block_cache() { sstables_.clear_block_cache(); }
 
-void PersistentKeyValueStore::reset_read_statistics() {
-  sstables_.reset_read_statistics();
-}
+void PersistentKeyValueStore::reset_read_statistics() { sstables_.reset_read_statistics(); }
 
 const std::filesystem::path& PersistentKeyValueStore::sstable_directory() const noexcept {
   return sstables_.directory();
@@ -262,8 +254,8 @@ DurabilityMode PersistentKeyValueStore::durability_mode() const noexcept {
   return wal_writer_->durability_mode();
 }
 
-std::optional<Entry> PersistentKeyValueStore::latest_entry_without_validation(
-    const std::string_view key) const {
+std::optional<Entry>
+PersistentKeyValueStore::latest_entry_without_validation(const std::string_view key) const {
   return latest_entry(*memtables_, sstables_, key);
 }
 
@@ -284,8 +276,7 @@ void PersistentKeyValueStore::flush_immutable_memtables_locked() {
 }
 
 void PersistentKeyValueStore::reset_wal_if_fully_persisted_locked() {
-  if (memtables_->active_entry_count() == 0U &&
-      memtables_->immutable_table_count() == 0U) {
+  if (memtables_->active_entry_count() == 0U && memtables_->immutable_table_count() == 0U) {
     wal_writer_->reset();
   }
 }
@@ -302,5 +293,4 @@ void PersistentKeyValueStore::compact_if_required_locked() {
   }
 }
 
-}  // namespace nebulakv
-
+} // namespace nebulakv

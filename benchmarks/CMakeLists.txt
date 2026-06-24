@@ -13,6 +13,9 @@ add_executable(
   nebulakv_benchmarks
   compaction_benchmark.cpp
   key_value_store_benchmark.cpp
+  raft_benchmark.cpp
   sstable_benchmark.cpp)
-target_link_libraries(nebulakv_benchmarks PRIVATE NebulaKV::core benchmark::benchmark_main)
+target_link_libraries(
+  nebulakv_benchmarks
+  PRIVATE NebulaKV::core NebulaKV::raft benchmark::benchmark_main)
 configure_project_target(nebulakv_benchmarks)

@@ -1,312 +1,316 @@
 # NebulaKV
 
-NebulaKV is a C++20 key-value database with a durable LSM-tree storage engine and a concurrent
-gRPC API. It combines a checksummed write-ahead log, crash recovery, sorted MemTables, indexed
-SSTables, Bloom-filter negative lookups, an LRU block cache, atomic manifests, leveled compaction,
-and a bounded network execution layer.
+NebulaKV is a C++20 distributed key-value database built around a Raft-replicated LSM-tree storage
+engine. It combines persistent consensus, linearizable client operations, crash recovery, snapshots,
+checksummed storage formats, compaction, observability, fault injection, and reproducible testing in
+one repository.
 
-## Capabilities
+## Highlights
 
-- Protocol Buffers API for `Put`, `Get`, `Delete`, `BatchPut`, and `Status`
-- `nebulakv-server` and `nebulakv-cli` executables
-- Fixed worker pool with bounded request queue and overload backpressure
-- Per-request deadlines and gRPC status-code mapping
-- Configurable maximum transport and application message sizes
-- Graceful shutdown that drains accepted work and flushes acknowledged writes
-- Concurrent remote clients
-- Structured status responses with storage, cache, compaction, queue, and request metrics
-- Thread-safe in-memory reference store using `std::unordered_map` and `std::shared_mutex`
-- Sorted MemTables using `std::map`, monotonic sequence numbers, and tombstones
-- Checksummed WAL with `sync`, `batch`, and OS-buffered durability modes
-- Restart recovery with incomplete-tail and corruption handling
-- Versioned SSTables with checksummed data blocks, indexes, headers, and footers
-- Custom Bloom filters and a shared byte-bounded LRU block cache
-- Atomic `MANIFEST-*` and `CURRENT` metadata publication
-- Overlap-aware L0-to-L1 compaction with safe tombstone retirement
-- GCC and Clang builds with warnings treated as errors
-- GoogleTest, Google Benchmark, sanitizers, clang-format, clang-tidy, and GitHub Actions
+- Three-node Raft consensus with follower, candidate, and leader states
+- Randomized elections, heartbeats, majority commit, and conflicting-log repair
+- Persistent term, vote, commit index, replicated log, and state-machine snapshots
+- Snapshot installation for lagging followers and retained-log truncation
+- Linearizable writes and quorum-confirmed leader reads
+- gRPC `Put`, `Get`, `Delete`, `BatchPut`, `Status`, and internal Raft RPCs
+- Automatic client leader redirects
+- Fixed worker pool, bounded request queue, deadlines, and backpressure
+- WAL, sorted MemTables, indexed SSTables, Bloom filters, LRU block cache, and compaction
+- Atomic `CURRENT`, manifest, Raft metadata, and snapshot publication
+- JSON Lines logs and Prometheus-compatible metrics
+- Deterministic in-memory partitions, drops, and latency injection
+- Remote workload generator and Google Benchmark microbenchmarks
+- Local-process and Docker Compose three-node deployments
+- GCC, Clang, GoogleTest, sanitizers, formatting, and GitHub Actions
+
+## Architecture
+
+```text
+Remote client
+     |
+     v
+leader-aware gRPC client
+     |
+     v
+bounded service executor
+     |
+     +---- follower --------------------> leader hint
+     |
+     +---- leader write
+     |        |
+     |        v
+     |   persistent Raft log
+     |        |
+     |        v
+     |   majority replication
+     |        |
+     |        v
+     |   commit and apply
+     |
+     +---- leader read
+              |
+              v
+        current-term quorum barrier
+              |
+              v
+     WAL / MemTables / SSTables / cache
+```
+
+See [architecture](docs/architecture.md), [operations](docs/operations.md),
+[fault testing](docs/fault-testing.md), and [benchmarking](docs/benchmarking.md).
 
 ## Prerequisites
-
-Storage-only builds:
 
 ```bash
 sudo apt update
 sudo apt install -y \
   build-essential \
   clang \
-  clang-tidy \
   clang-format \
+  clang-tidy \
   cmake \
+  git \
   ninja-build \
-  git
-```
-
-Network builds also require Protocol Buffers and gRPC development packages:
-
-```bash
-sudo apt install -y \
   protobuf-compiler \
   protobuf-compiler-grpc \
   libprotobuf-dev \
   libgrpc++-dev
 ```
 
-CMake 3.22 or newer, Ninja, Git, and a C++20 compiler are required.
+CMake 3.22 or newer and a C++20 compiler are required.
 
-## Storage build
-
-```bash
-cmake --preset debug
-cmake --build --preset debug
-ctest --preset debug
-```
-
-Run the local storage administration tool:
+## Build and test the distributed system
 
 ```bash
-./build/debug/nebulakv-storage
+cmake --preset distributed-release
+cmake --build --preset distributed-release
+ctest --preset distributed-release --output-on-failure
 ```
 
-Create a checkpoint and run compaction:
+The complete test corpus contains 190 unit and integration tests. Network-enabled builds generate
+Protocol Buffer and gRPC sources from `proto/nebulakv/v1/key_value_service.proto`.
+
+## Start three local nodes
 
 ```bash
-./build/debug/nebulakv-storage data/nebulakv.wal --checkpoint --compact
+scripts/run-three-node.sh
 ```
 
-## Network build
+The nodes use:
+
+| Node | Client/Raft endpoint | Metrics |
+|---|---:|---:|
+| node-1 | 127.0.0.1:5001 | 127.0.0.1:9101 |
+| node-2 | 127.0.0.1:5002 | 127.0.0.1:9102 |
+| node-3 | 127.0.0.1:5003 | 127.0.0.1:9103 |
+
+Check status and use the database:
 
 ```bash
-cmake --preset network-release
-cmake --build --preset network-release
-ctest --preset network-release --output-on-failure
+build/distributed-release/nebulakv-cli \
+  --host 127.0.0.1 --port 5001 status
+
+build/distributed-release/nebulakv-cli \
+  --host 127.0.0.1 --port 5002 put user:1 Ansh
+
+build/distributed-release/nebulakv-cli \
+  --host 127.0.0.1 --port 5003 get user:1
+
+build/distributed-release/nebulakv-cli \
+  --host 127.0.0.1 --port 5001 delete user:1
 ```
 
-This build generates C++ Protocol Buffers and gRPC sources from:
+The client follows leader metadata when the first node contacted is a follower.
 
-```text
-proto/nebulakv/v1/key_value_service.proto
-```
-
-## Start the server
+Stop all local nodes:
 
 ```bash
-./build/network-release/nebulakv-server \
-  --host 0.0.0.0 \
-  --port 5001 \
-  --data-dir data/server \
-  --workers 8 \
-  --queue-capacity 1024 \
+scripts/stop-three-node.sh
+```
+
+## Start a node manually
+
+```bash
+build/distributed-release/nebulakv-node \
+  --node-id node-1 \
+  --listen 0.0.0.0:5001 \
+  --advertise 127.0.0.1:5001 \
+  --peer node-2=127.0.0.1:5002 \
+  --peer node-3=127.0.0.1:5003 \
+  --data-dir data/cluster/node-1 \
+  --metrics-port 9101 \
   --durability sync
 ```
 
-Useful server options:
+Important options:
 
 ```text
+--workers <count>
+--queue-capacity <count>
 --max-message-bytes <bytes>
---max-batch-entries <count>
---max-batch-bytes <bytes>
---checkpoint-on-shutdown
+--election-min-ms <milliseconds>
+--election-max-ms <milliseconds>
+--heartbeat-ms <milliseconds>
+--rpc-timeout-ms <milliseconds>
+--snapshot-threshold <committed entries>
+--fault-drop-probability <0..1>
+--fault-delay-ms <milliseconds>
 ```
 
-Send `SIGINT` or `SIGTERM` for graceful shutdown. The server stops accepting new RPCs, drains
-accepted work, and flushes the WAL before exiting. With `--checkpoint-on-shutdown`, active memory
-state is also persisted to SSTables before the process exits.
+## Consistency and failure behaviour
 
-## Remote CLI
+A write is successful only after a majority has stored the entry and the leader has applied it.
+An isolated leader cannot acknowledge writes. `Get` and the existence check used by `Delete` require
+a fresh current-term quorum confirmation, so an isolated former leader cannot serve stale successful
+reads.
+
+The bundled cluster smoke test verifies election, replication, cross-node reads, leader termination,
+replacement election, and post-failover writes:
 
 ```bash
-./build/network-release/nebulakv-cli --host 127.0.0.1 --port 5001 put user:1 Ansh
-./build/network-release/nebulakv-cli --host 127.0.0.1 --port 5001 get user:1
-./build/network-release/nebulakv-cli --host 127.0.0.1 --port 5001 delete user:1
-./build/network-release/nebulakv-cli --host 127.0.0.1 --port 5001 \
-  batch-put user:1 Ansh user:2 Sumeet
-./build/network-release/nebulakv-cli --host 127.0.0.1 --port 5001 status
+scripts/ci-cluster-smoke.sh build/distributed-release
 ```
 
-Set a client deadline with:
+## Snapshots
+
+Every node creates a logical state-machine snapshot after the configured number of applied entries.
+The snapshot records its last included Raft term and index. Older log entries are removed after the
+snapshot is durable. A follower whose next required entry is older than the retained log receives an
+`InstallSnapshot` RPC and then resumes normal replication.
+
+Node data is organized as:
+
+```text
+data/cluster/node-1/
+├── raft/
+│   ├── hard-state
+│   ├── log
+│   └── snapshot
+├── state.wal
+└── sstables/
+    ├── CURRENT
+    ├── MANIFEST-...
+    └── *.sst
+```
+
+## Metrics and logs
+
+Each node exposes Prometheus text at `/metrics`:
 
 ```bash
-./build/network-release/nebulakv-cli \
-  --timeout-ms 500 \
+curl http://127.0.0.1:9101/metrics
+```
+
+Metrics include:
+
+- request totals, failures, redirects, and latency percentiles
+- queue depth, active work, and rejected requests
+- Raft role, term, commit index, last-applied index, and replication lag
+- election, replication-failure, snapshot-created, and snapshot-installed counts
+- cache, Bloom-filter, compaction, and storage statistics
+
+Node logs are JSON Lines on standard output.
+
+## Workload benchmark
+
+```bash
+build/distributed-release/nebulakv-benchmark \
   --host 127.0.0.1 \
   --port 5001 \
-  get user:1
+  --duration-seconds 30 \
+  --clients 16 \
+  --keyspace 100000 \
+  --value-bytes 256 \
+  --read-ratio 0.80
 ```
 
-## RPC behaviour
-
-| RPC | Successful missing-key behaviour | Validation failure |
-|---|---|---|
-| `Put` | Not applicable | `INVALID_ARGUMENT` |
-| `Get` | `found=false` | `INVALID_ARGUMENT` |
-| `Delete` | `deleted=false` | `INVALID_ARGUMENT` |
-| `BatchPut` | Not applicable | `INVALID_ARGUMENT` |
-| `Status` | Returns service and storage metrics | Deadline status when expired |
-
-When the bounded worker queue is full, storage RPCs return `RESOURCE_EXHAUSTED`. Requests that
-expire before a worker begins execution return `DEADLINE_EXCEEDED`. The transport and service both
-enforce configurable message limits.
-
-`BatchPut` validates the entire batch before applying any writes. Once execution begins, entries
-are durably written in order; the operation is not a multi-key transaction.
-
-## Network execution path
-
-```text
-gRPC request
-      |
-Transport message-size limit
-      |
-Application request-size validation
-      |
-Deadline check
-      |
-Bounded request queue
-      |
-Queue full? ---------------- yes ---> RESOURCE_EXHAUSTED
-      |
-Worker thread
-      |
-Request validation
-      |
-WAL append and durability policy
-      |
-MemTable update
-      |
-Optional flush and compaction
-      |
-gRPC response
-```
-
-## Read path
-
-```text
-Validate key
-      |
-Check active MemTable
-      |
-Check immutable MemTables newest-first
-      |
-Select candidate SSTables by key range
-      |
-Bloom filter says definitely absent? ---- yes ---> skip table
-      |
-Search in-memory block index
-      |
-Check shared LRU block cache
-      |
-Cache miss: pread + checksum + decode
-      |
-Binary-search decoded data block
-      |
-Return newest sequence or tombstone
-```
-
-## Status metrics
-
-The `Status` RPC exposes:
-
-- Live key count and latest sequence number
-- L0 and L1 SSTable counts
-- Cache hits, misses, evictions, and hit ratio
-- Completed compactions
-- Queued and active requests
-- Rejected requests
-- Total and failed RPC counts
-
-## Tests
-
-The storage presets run 172 unit and integration tests. Network-enabled presets add five in-process
-gRPC integration tests for remote CRUD, batch writes, status, deadlines, concurrent clients, and
-graceful durability, for a total of 177 tests.
+Or:
 
 ```bash
-ctest --preset debug --output-on-failure
-ctest --preset network-release --output-on-failure
+CLIENTS=32 DURATION_SECONDS=60 READ_RATIO=0.95 scripts/run-workload.sh
 ```
 
-## Sanitizers
+The report includes operations per second, errors, successful reads and writes, and
+P50/P95/P99/maximum latency.
 
-```bash
-cmake --preset asan
-cmake --build --preset asan
-ctest --preset asan --output-on-failure
-
-cmake --preset tsan
-cmake --build --preset tsan
-ctest --preset tsan --output-on-failure
-```
-
-The default sanitizer presets validate the storage engine and dependency-free service runtime.
-The network AddressSanitizer preset also runs the five in-process gRPC integration tests:
-
-```bash
-cmake --preset network-asan
-cmake --build --preset network-asan
-ctest --preset network-asan --output-on-failure
-```
-
-The network ThreadSanitizer preset builds the gRPC server and client but intentionally runs only the
-172 project-owned storage and service-runtime tests:
-
-```bash
-cmake --preset network-tsan
-cmake --build --preset network-tsan
-ctest --preset network-tsan --output-on-failure
-```
-
-Ubuntu's prebuilt gRPC and Abseil shared libraries are not compiled with the same ThreadSanitizer
-instrumentation as NebulaKV. Running the five in-process RPC tests against those binaries produces
-reports inside `libgrpc`, `libgpr`, and `libabsl_graphcycles_internal`, so those external-library
-integration tests remain covered by `network-release` and `network-asan` instead. NebulaKV's bounded
-executor, request processor, storage concurrency, compaction concurrency, and cache concurrency tests
-continue to run under ThreadSanitizer.
-
-## Benchmarks
+## Microbenchmarks
 
 ```bash
 cmake --preset benchmark
 cmake --build --preset benchmark
-./build/benchmark/benchmarks/nebulakv_benchmarks
+
+build/benchmark/benchmarks/nebulakv_benchmarks \
+  --benchmark_filter='raft|sstable|compaction' \
+  --benchmark_repetitions=5 \
+  --benchmark_report_aggregates_only=true
 ```
 
-Available benchmark groups include hash-store operations, sorted MemTables, indexed SSTable reads,
-cache hits, Bloom-filter negative lookups, and leveled compaction.
+The benchmark target covers majority commit, quorum read barriers, cold and cached SSTable reads,
+Bloom-filter negatives, and compaction throughput.
 
-## Repository layout
+## Docker Compose
 
-```text
-.
-├── app/main.cpp
-├── client/main.cpp
-├── server/main.cpp
-├── proto/nebulakv/v1/key_value_service.proto
-├── include/nebulakv/
-│   ├── network/
-│   │   ├── bounded_executor.hpp
-│   │   ├── grpc_client.hpp
-│   │   ├── grpc_server.hpp
-│   │   ├── grpc_service.hpp
-│   │   └── request_processor.hpp
-│   └── storage engine headers
-├── src/network/
-├── src/storage engine sources
-├── tests/
-├── benchmarks/
-├── CMakeLists.txt
-└── CMakePresets.json
+```bash
+docker compose build
+docker compose up -d
+docker compose ps
 ```
 
-## Correctness guarantees
+Use the CLI inside the Compose network:
 
-- Acknowledged synchronous writes are recoverable after restart.
-- Graceful shutdown flushes accepted writes in every durability mode.
-- Incomplete WAL tails and malformed records are handled without process crashes.
-- WAL and SSTable checksums detect corruption.
-- Sequence numbers and tombstones survive restarts and compaction.
-- Bloom filters never classify an inserted key as definitely absent.
-- Cached blocks are immutable and safely shared across readers.
-- Manifest publication occurs before obsolete SSTables are removed.
-- The network queue is bounded, and overload is reported rather than growing memory without limit.
-- Invalid requests map to explicit gRPC status codes.
+```bash
+docker compose exec node-1 \
+  nebulakv-cli --host node-2 --port 5001 put docker:key value
+
+docker compose exec node-1 \
+  nebulakv-cli --host node-3 --port 5001 get docker:key
+```
+
+Host metrics are available on ports 9101, 9102, and 9103. Persistent named volumes keep node data
+across `docker compose down`; use `docker compose down -v` to delete it.
+
+## Sanitizers and formatting
+
+```bash
+cmake --preset distributed-asan
+cmake --build --preset distributed-asan
+ctest --preset distributed-asan --output-on-failure
+
+cmake --preset distributed-tsan
+cmake --build --preset distributed-tsan
+ctest --preset distributed-tsan --output-on-failure
+
+cmake --preset debug
+cmake --build --preset debug --target format
+cmake --build --preset debug --target format-check
+```
+
+The ThreadSanitizer preset keeps the real server and client targets enabled while excluding the
+in-process gRPC test target when the system gRPC runtime is not sanitizer-compatible.
+
+## Storage-only build
+
+The LSM engine and Raft core do not require gRPC:
+
+```bash
+cmake --preset release
+cmake --build --preset release
+ctest --preset release --output-on-failure
+```
+
+The local storage administration executable is `build/release/nebulakv-storage`.
+
+## Current scope
+
+- Static cluster membership
+- Unary gRPC RPCs
+- Leader-based linearizable reads and writes
+- One logical state machine per node
+- L0/L1 storage compaction
+
+Dynamic Raft membership, TLS identity management, multi-key transactions, and geographic
+multi-region tuning are intentionally outside this release.
+
+## License
+
+See [LICENSE](LICENSE).

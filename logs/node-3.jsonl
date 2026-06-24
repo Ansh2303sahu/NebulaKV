@@ -1,0 +1,2 @@
+{"timestamp":"2026-06-24T07:50:03Z","level":"info","event":"cluster_server_started","advertised_address":"127.0.0.1:5003","listen_address":"127.0.0.1:5003","metrics_port":"9103"}
+{"timestamp":"2026-06-24T07:50:03Z","level":"info","event":"node_ready","advertised_address":"127.0.0.1:5003","data_directory":"data/cluster/node-3","listen_address":"127.0.0.1:5003","node_id":"node-3","peer_count":"2"}

@@ -13,7 +13,7 @@
 namespace nebulakv {
 
 class InMemoryKeyValueStore final : public KeyValueStore {
- public:
+public:
   static constexpr std::size_t kMaxKeySize = storage_limits::kMaxKeySize;
   static constexpr std::size_t kMaxValueSize = storage_limits::kMaxValueSize;
 
@@ -35,7 +35,7 @@ class InMemoryKeyValueStore final : public KeyValueStore {
 
   [[nodiscard]] std::size_t size() const;
 
- private:
+private:
   struct TransparentStringHash {
     using is_transparent = void;
 
@@ -50,4 +50,4 @@ class InMemoryKeyValueStore final : public KeyValueStore {
   Storage entries_;
 };
 
-}  // namespace nebulakv
+} // namespace nebulakv

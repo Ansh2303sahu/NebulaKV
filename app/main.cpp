@@ -29,10 +29,8 @@ int main(const int argc, char** argv) {
   try {
     nebulakv::PersistentKeyValueStore store{options};
     store.put("project", "NebulaKV");
-    store.put(
-        "storage",
-        "WAL, sorted MemTables, indexed SSTables, Bloom filters, LRU cache, "
-        "atomic manifests, and leveled compaction");
+    store.put("storage", "WAL, sorted MemTables, indexed SSTables, Bloom filters, LRU cache, "
+                         "atomic manifests, and leveled compaction");
     if (create_checkpoint) {
       store.checkpoint();
     }
@@ -54,13 +52,10 @@ int main(const int argc, char** argv) {
     std::cout << "sstable_directory=" << store.sstable_directory() << '\n';
     std::cout << "current=" << store.current_path() << '\n';
     std::cout << "manifest=" << store.active_manifest_path() << '\n';
-    std::cout << "durability=" << nebulakv::to_string(store.durability_mode())
-              << '\n';
-    std::cout << "recovered_records="
-              << store.recovery_report().records_applied << '\n';
+    std::cout << "durability=" << nebulakv::to_string(store.durability_mode()) << '\n';
+    std::cout << "recovered_records=" << store.recovery_report().records_applied << '\n';
     std::cout << "last_sequence=" << store.last_sequence_number() << '\n';
-    std::cout << "immutable_memtables=" << store.immutable_memtable_count()
-              << '\n';
+    std::cout << "immutable_memtables=" << store.immutable_memtable_count() << '\n';
     const auto cache = store.block_cache_statistics();
     const auto bloom = store.bloom_filter_statistics();
     const auto compaction_statistics = store.compaction_statistics();
@@ -74,12 +69,9 @@ int main(const int argc, char** argv) {
     std::cout << "compaction_runs=" << compaction_statistics.runs << '\n';
     if (compaction) {
       std::cout << "compaction_performed=" << compaction->performed << '\n';
-      std::cout << "compaction_input_tables=" << compaction->input_tables
-                << '\n';
-      std::cout << "compaction_output_tables=" << compaction->output_tables
-                << '\n';
-      std::cout << "compaction_tombstones_dropped="
-                << compaction->tombstones_dropped << '\n';
+      std::cout << "compaction_input_tables=" << compaction->input_tables << '\n';
+      std::cout << "compaction_output_tables=" << compaction->output_tables << '\n';
+      std::cout << "compaction_tombstones_dropped=" << compaction->tombstones_dropped << '\n';
     }
     std::cout << "entries=" << store.size() << '\n';
   } catch (const std::exception& error) {

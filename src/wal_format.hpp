@@ -10,8 +10,8 @@
 
 namespace nebulakv::wal_format {
 
-inline constexpr std::array<std::byte, 4> kMagic{
-    std::byte{'N'}, std::byte{'K'}, std::byte{'V'}, std::byte{'W'}};
+inline constexpr std::array<std::byte, 4> kMagic{std::byte{'N'}, std::byte{'K'}, std::byte{'V'},
+                                                 std::byte{'W'}};
 inline constexpr std::uint16_t kVersion = 1;
 inline constexpr std::size_t kHeaderSize = 16;
 inline constexpr std::size_t kChecksumSize = 4;
@@ -22,4 +22,4 @@ inline constexpr std::size_t kChecksumSize = 4;
 void append_uint16_le(std::vector<std::byte>& destination, std::uint16_t value);
 void append_uint32_le(std::vector<std::byte>& destination, std::uint32_t value);
 
-}  // namespace nebulakv::wal_format
+} // namespace nebulakv::wal_format

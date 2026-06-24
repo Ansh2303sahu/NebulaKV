@@ -25,9 +25,7 @@ struct ApiError {
   ApiErrorCode code{ApiErrorCode::None};
   std::string message;
 
-  [[nodiscard]] explicit operator bool() const noexcept {
-    return code != ApiErrorCode::None;
-  }
+  [[nodiscard]] explicit operator bool() const noexcept { return code != ApiErrorCode::None; }
 };
 
 struct PutResult {
@@ -83,22 +81,20 @@ struct RequestProcessorOptions {
 };
 
 class RequestProcessor final {
- public:
-  RequestProcessor(PersistentKeyValueStore& store,
-                   RequestProcessorOptions options = {});
+public:
+  RequestProcessor(PersistentKeyValueStore& store, RequestProcessorOptions options = {});
 
   [[nodiscard]] PutResult put(std::string key, std::string value) noexcept;
   [[nodiscard]] GetResult get(std::string_view key) const noexcept;
   [[nodiscard]] DeleteResult remove(std::string_view key) noexcept;
-  [[nodiscard]] BatchPutResult batch_put(
-      std::vector<std::pair<std::string, std::string>> entries) noexcept;
-  [[nodiscard]] StatusSnapshot status(
-      const ExecutorStatistics& executor,
-      const ServiceStatistics& service) const noexcept;
+  [[nodiscard]] BatchPutResult
+  batch_put(std::vector<std::pair<std::string, std::string>> entries) noexcept;
+  [[nodiscard]] StatusSnapshot status(const ExecutorStatistics& executor,
+                                      const ServiceStatistics& service) const noexcept;
 
- private:
-  [[nodiscard]] ApiError validate_batch(
-      const std::vector<std::pair<std::string, std::string>>& entries) const noexcept;
+private:
+  [[nodiscard]] ApiError
+  validate_batch(const std::vector<std::pair<std::string, std::string>>& entries) const noexcept;
 
   PersistentKeyValueStore& store_;
   RequestProcessorOptions options_;
@@ -106,4 +102,4 @@ class RequestProcessor final {
 
 [[nodiscard]] std::string_view to_string(ApiErrorCode code) noexcept;
 
-}  // namespace nebulakv::network
+} // namespace nebulakv::network

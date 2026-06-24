@@ -18,4 +18,4 @@ struct DataBlock {
   [[nodiscard]] const std::string& last_key() const { return records.back().first; }
 };
 
-}  // namespace nebulakv
+} // namespace nebulakv

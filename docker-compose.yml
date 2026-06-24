@@ -1,0 +1,108 @@
+services:
+  node-1:
+    build: .
+    image: nebulakv:distributed
+    init: true
+    command:
+      - --node-id
+      - node-1
+      - --listen
+      - 0.0.0.0:5001
+      - --advertise
+      - node-1:5001
+      - --peer
+      - node-2=node-2:5001
+      - --peer
+      - node-3=node-3:5001
+      - --data-dir
+      - /var/lib/nebulakv/node
+      - --metrics-port
+      - "9100"
+      - --snapshot-threshold
+      - "10000"
+    ports:
+      - "5001:5001"
+      - "9101:9100"
+    volumes:
+      - node-1-data:/var/lib/nebulakv/node
+    healthcheck:
+      test: ["CMD-SHELL", "nebulakv-cli --host 127.0.0.1 --port 5001 --timeout-ms 1000 status >/dev/null"]
+      interval: 5s
+      timeout: 2s
+      retries: 20
+    stop_grace_period: 15s
+
+  node-2:
+    image: nebulakv:distributed
+    init: true
+    depends_on:
+      node-1:
+        condition: service_started
+    command:
+      - --node-id
+      - node-2
+      - --listen
+      - 0.0.0.0:5001
+      - --advertise
+      - node-2:5001
+      - --peer
+      - node-1=node-1:5001
+      - --peer
+      - node-3=node-3:5001
+      - --data-dir
+      - /var/lib/nebulakv/node
+      - --metrics-port
+      - "9100"
+      - --snapshot-threshold
+      - "10000"
+    ports:
+      - "5002:5001"
+      - "9102:9100"
+    volumes:
+      - node-2-data:/var/lib/nebulakv/node
+    healthcheck:
+      test: ["CMD-SHELL", "nebulakv-cli --host 127.0.0.1 --port 5001 --timeout-ms 1000 status >/dev/null"]
+      interval: 5s
+      timeout: 2s
+      retries: 20
+    stop_grace_period: 15s
+
+  node-3:
+    image: nebulakv:distributed
+    init: true
+    depends_on:
+      node-1:
+        condition: service_started
+    command:
+      - --node-id
+      - node-3
+      - --listen
+      - 0.0.0.0:5001
+      - --advertise
+      - node-3:5001
+      - --peer
+      - node-1=node-1:5001
+      - --peer
+      - node-2=node-2:5001
+      - --data-dir
+      - /var/lib/nebulakv/node
+      - --metrics-port
+      - "9100"
+      - --snapshot-threshold
+      - "10000"
+    ports:
+      - "5003:5001"
+      - "9103:9100"
+    volumes:
+      - node-3-data:/var/lib/nebulakv/node
+    healthcheck:
+      test: ["CMD-SHELL", "nebulakv-cli --host 127.0.0.1 --port 5001 --timeout-ms 1000 status >/dev/null"]
+      interval: 5s
+      timeout: 2s
+      retries: 20
+    stop_grace_period: 15s
+
+volumes:
+  node-1-data:
+  node-2-data:
+  node-3-data:

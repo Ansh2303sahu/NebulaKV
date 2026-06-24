@@ -5,6 +5,8 @@ package nebulakv.v1;
 message ErrorDetail {
   string code = 1;
   string message = 2;
+  string leader_id = 3;
+  string leader_address = 4;
 }
 
 message KeyValue {
@@ -71,6 +73,78 @@ message StatusResponse {
   uint64 rejected_requests = 13;
   uint64 requests_total = 14;
   uint64 failed_requests_total = 15;
+  string node_id = 16;
+  string raft_role = 17;
+  uint64 raft_term = 18;
+  string leader_id = 19;
+  string leader_address = 20;
+  uint64 raft_commit_index = 21;
+  uint64 raft_last_applied = 22;
+  uint64 raft_last_log_index = 23;
+  uint64 raft_snapshot_index = 24;
+  uint64 raft_elections_total = 25;
+  uint64 raft_replication_failures_total = 26;
+  uint64 raft_snapshots_created_total = 27;
+  uint64 raft_snapshots_installed_total = 28;
+}
+
+message RaftCommand {
+  enum Type {
+    NOOP = 0;
+    PUT = 1;
+    DELETE = 2;
+  }
+  Type type = 1;
+  bytes key = 2;
+  bytes value = 3;
+}
+
+message RaftLogEntry {
+  uint64 index = 1;
+  uint64 term = 2;
+  RaftCommand command = 3;
+}
+
+message RequestVoteRequest {
+  uint64 term = 1;
+  string candidate_id = 2;
+  uint64 last_log_index = 3;
+  uint64 last_log_term = 4;
+}
+
+message RequestVoteResponse {
+  uint64 term = 1;
+  bool vote_granted = 2;
+}
+
+message AppendEntriesRequest {
+  uint64 term = 1;
+  string leader_id = 2;
+  uint64 previous_log_index = 3;
+  uint64 previous_log_term = 4;
+  repeated RaftLogEntry entries = 5;
+  uint64 leader_commit = 6;
+}
+
+message AppendEntriesResponse {
+  uint64 term = 1;
+  bool success = 2;
+  uint64 match_index = 3;
+  uint64 conflict_index = 4;
+}
+
+message InstallSnapshotRequest {
+  uint64 term = 1;
+  string leader_id = 2;
+  uint64 last_included_index = 3;
+  uint64 last_included_term = 4;
+  bytes payload = 5;
+}
+
+message InstallSnapshotResponse {
+  uint64 term = 1;
+  bool success = 2;
+  uint64 installed_index = 3;
 }
 
 service KeyValueService {
@@ -79,4 +153,10 @@ service KeyValueService {
   rpc Delete(DeleteRequest) returns (DeleteResponse);
   rpc BatchPut(BatchPutRequest) returns (BatchPutResponse);
   rpc Status(StatusRequest) returns (StatusResponse);
+}
+
+service RaftService {
+  rpc RequestVote(RequestVoteRequest) returns (RequestVoteResponse);
+  rpc AppendEntries(AppendEntriesRequest) returns (AppendEntriesResponse);
+  rpc InstallSnapshot(InstallSnapshotRequest) returns (InstallSnapshotResponse);
 }

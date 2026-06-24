@@ -27,7 +27,7 @@ struct ReadResult {
 };
 
 class FileDescriptor final {
- public:
+public:
   explicit FileDescriptor(const int value) : value_{value} {}
   ~FileDescriptor() {
     if (value_ >= 0) {
@@ -42,7 +42,7 @@ class FileDescriptor final {
 
   [[nodiscard]] int get() const noexcept { return value_; }
 
- private:
+private:
   int value_{-1};
 };
 
@@ -68,8 +68,7 @@ class FileDescriptor final {
   return result;
 }
 
-[[nodiscard]] WalScanResult make_issue(const WalScanResult& current,
-                                       const WalReadIssueCode code,
+[[nodiscard]] WalScanResult make_issue(const WalScanResult& current, const WalReadIssueCode code,
                                        const std::uint64_t offset) {
   WalScanResult result = current;
   result.issue = WalReadIssue{code, offset};
@@ -80,26 +79,26 @@ class FileDescriptor final {
   return std::equal(wal_format::kMagic.begin(), wal_format::kMagic.end(), header.begin());
 }
 
-}  // namespace
+} // namespace
 
 std::string_view to_string(const WalReadIssueCode code) noexcept {
   switch (code) {
-    case WalReadIssueCode::IncompleteRecord:
-      return "incomplete_record";
-    case WalReadIssueCode::InvalidMagic:
-      return "invalid_magic";
-    case WalReadIssueCode::UnsupportedVersion:
-      return "unsupported_version";
-    case WalReadIssueCode::InvalidOperation:
-      return "invalid_operation";
-    case WalReadIssueCode::InvalidRecordLength:
-      return "invalid_record_length";
-    case WalReadIssueCode::InvalidDeleteRecord:
-      return "invalid_delete_record";
-    case WalReadIssueCode::ChecksumMismatch:
-      return "checksum_mismatch";
-    case WalReadIssueCode::IoError:
-      return "io_error";
+  case WalReadIssueCode::IncompleteRecord:
+    return "incomplete_record";
+  case WalReadIssueCode::InvalidMagic:
+    return "invalid_magic";
+  case WalReadIssueCode::UnsupportedVersion:
+    return "unsupported_version";
+  case WalReadIssueCode::InvalidOperation:
+    return "invalid_operation";
+  case WalReadIssueCode::InvalidRecordLength:
+    return "invalid_record_length";
+  case WalReadIssueCode::InvalidDeleteRecord:
+    return "invalid_delete_record";
+  case WalReadIssueCode::ChecksumMismatch:
+    return "checksum_mismatch";
+  case WalReadIssueCode::IoError:
+    return "io_error";
   }
 
   return "unknown";
@@ -209,9 +208,9 @@ WalScanResult WalReader::scan(const RecordVisitor& visitor) const {
     visitor(record);
 
     ++result.records_read;
-    result.valid_bytes += static_cast<std::uint64_t>(
-        header.size() + payload.size() + checksum_bytes.size());
+    result.valid_bytes +=
+        static_cast<std::uint64_t>(header.size() + payload.size() + checksum_bytes.size());
   }
 }
 
-}  // namespace nebulakv
+} // namespace nebulakv

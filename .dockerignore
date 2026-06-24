@@ -1,0 +1,8 @@
+.git
+.github
+build
+data
+logs
+*.zip
+*.tar.gz
+compile_commands.json

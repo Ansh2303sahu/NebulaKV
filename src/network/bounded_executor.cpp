@@ -7,8 +7,7 @@
 
 namespace nebulakv::network {
 
-BoundedExecutor::BoundedExecutor(const std::size_t worker_count,
-                                 const std::size_t queue_capacity)
+BoundedExecutor::BoundedExecutor(const std::size_t worker_count, const std::size_t queue_capacity)
     : worker_count_{worker_count}, queue_capacity_{queue_capacity} {
   if (worker_count == 0U) {
     throw std::invalid_argument{"worker count must be greater than zero"};
@@ -93,4 +92,4 @@ void BoundedExecutor::worker_loop() {
   }
 }
 
-}  // namespace nebulakv::network
+} // namespace nebulakv::network

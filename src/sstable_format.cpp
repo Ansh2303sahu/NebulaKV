@@ -25,12 +25,10 @@ void append_string(std::vector<std::byte>& destination, const std::string_view v
 
 [[nodiscard]] bool has_magic(const std::span<const std::byte> bytes,
                              const std::span<const std::byte> magic) {
-  return bytes.size() >= magic.size() &&
-         std::equal(magic.begin(), magic.end(), bytes.begin());
+  return bytes.size() >= magic.size() && std::equal(magic.begin(), magic.end(), bytes.begin());
 }
 
-void validate_checksum(const std::span<const std::byte> bytes,
-                       const std::uint64_t file_offset,
+void validate_checksum(const std::span<const std::byte> bytes, const std::uint64_t file_offset,
                        const std::string_view component) {
   if (bytes.size() < kChecksumSize) {
     throw SSTableCorruptionError{file_offset,
@@ -46,10 +44,8 @@ void validate_checksum(const std::span<const std::byte> bytes,
   }
 }
 
-[[nodiscard]] std::string read_string(const std::span<const std::byte> bytes,
-                                      std::size_t& cursor,
-                                      const std::size_t length,
-                                      const std::uint64_t file_offset,
+[[nodiscard]] std::string read_string(const std::span<const std::byte> bytes, std::size_t& cursor,
+                                      const std::size_t length, const std::uint64_t file_offset,
                                       const std::string_view component) {
   if (cursor > bytes.size() || length > bytes.size() - cursor) {
     throw SSTableCorruptionError{file_offset + cursor,
@@ -65,12 +61,11 @@ void validate_checksum(const std::span<const std::byte> bytes,
 void require_size(const std::span<const std::byte> bytes, const std::size_t expected,
                   const std::uint64_t file_offset, const std::string_view component) {
   if (bytes.size() != expected) {
-    throw SSTableCorruptionError{file_offset,
-                                 std::string{component} + " has an invalid size"};
+    throw SSTableCorruptionError{file_offset, std::string{component} + " has an invalid size"};
   }
 }
 
-}  // namespace
+} // namespace
 
 void append_uint16(std::vector<std::byte>& destination, const std::uint16_t value) {
   destination.push_back(static_cast<std::byte>(value & 0xFFU));
@@ -95,8 +90,8 @@ std::uint16_t read_uint16(const std::span<const std::byte> bytes) {
   }
   return static_cast<std::uint16_t>(
       static_cast<std::uint16_t>(std::to_integer<std::uint8_t>(bytes[0])) |
-      static_cast<std::uint16_t>(
-          static_cast<std::uint16_t>(std::to_integer<std::uint8_t>(bytes[1])) << 8U));
+      static_cast<std::uint16_t>(static_cast<std::uint16_t>(std::to_integer<std::uint8_t>(bytes[1]))
+                                 << 8U));
 }
 
 std::uint32_t read_uint32(const std::span<const std::byte> bytes) {
@@ -141,8 +136,7 @@ std::vector<std::byte> serialize_header(const Header& header) {
   return bytes;
 }
 
-Header parse_header(const std::span<const std::byte> bytes,
-                    const std::uint64_t file_offset) {
+Header parse_header(const std::span<const std::byte> bytes, const std::uint64_t file_offset) {
   require_size(bytes, kHeaderSize, file_offset, "SSTable header");
   validate_checksum(bytes, file_offset, "SSTable header");
   if (!has_magic(bytes, kHeaderMagic)) {
@@ -162,8 +156,7 @@ Header parse_header(const std::span<const std::byte> bytes,
   header.target_data_block_bytes = read_uint32(bytes.subspan(32U, 4U));
   header.min_sequence_number = read_uint64(bytes.subspan(36U, 8U));
   header.max_sequence_number = read_uint64(bytes.subspan(44U, 8U));
-  if (header.entry_count == 0U || header.block_count == 0U ||
-      header.min_sequence_number == 0U ||
+  if (header.entry_count == 0U || header.block_count == 0U || header.min_sequence_number == 0U ||
       header.min_sequence_number > header.max_sequence_number) {
     throw SSTableCorruptionError{file_offset, "SSTable header metadata is invalid"};
   }
@@ -248,12 +241,11 @@ DataBlock parse_data_block(const std::span<const std::byte> bytes,
     }
     const bool deleted = flags == 1U;
     if (deleted && value_size != 0U) {
-      throw SSTableCorruptionError{file_offset + cursor - 4U,
-                                   "SSTable tombstone contains a value"};
+      throw SSTableCorruptionError{file_offset + cursor - 4U, "SSTable tombstone contains a value"};
     }
 
-    std::string key = read_string(bytes.first(payload_end), cursor, key_size, file_offset,
-                                  "SSTable data block");
+    std::string key =
+        read_string(bytes.first(payload_end), cursor, key_size, file_offset, "SSTable data block");
     std::string value = read_string(bytes.first(payload_end), cursor, value_size, file_offset,
                                     "SSTable data block");
     if (!previous_key.empty() && key <= previous_key) {
@@ -261,8 +253,7 @@ DataBlock parse_data_block(const std::span<const std::byte> bytes,
                                    "SSTable data block keys are not strictly sorted"};
     }
     previous_key = key;
-    block.records.emplace_back(std::move(key),
-                               Entry{std::move(value), sequence_number, deleted});
+    block.records.emplace_back(std::move(key), Entry{std::move(value), sequence_number, deleted});
   }
 
   if (cursor != payload_end) {
@@ -285,8 +276,8 @@ std::vector<std::byte> serialize_index_block(const IndexBlock& index) {
   append_uint32(bytes, static_cast<std::uint32_t>(index.entries.size()));
   std::string_view previous_last_key;
   for (const IndexEntry& entry : index.entries) {
-    if (entry.first_key.empty() || entry.last_key.empty() ||
-        entry.first_key > entry.last_key || entry.block_size == 0U ||
+    if (entry.first_key.empty() || entry.last_key.empty() || entry.first_key > entry.last_key ||
+        entry.block_size == 0U ||
         (!previous_last_key.empty() && entry.first_key <= previous_last_key)) {
       throw std::invalid_argument{"invalid SSTable index entry"};
     }
@@ -327,8 +318,7 @@ IndexBlock parse_index_block(const std::span<const std::byte> bytes,
 
   for (std::uint32_t position = 0; position < entry_count; ++position) {
     if (cursor > payload_end || kEntryFixedSize > payload_end - cursor) {
-      throw SSTableCorruptionError{file_offset + cursor,
-                                   "SSTable index entry is truncated"};
+      throw SSTableCorruptionError{file_offset + cursor, "SSTable index entry is truncated"};
     }
     IndexEntry entry;
     entry.block_offset = read_uint64(bytes.subspan(cursor, 8U));
@@ -342,22 +332,20 @@ IndexBlock parse_index_block(const std::span<const std::byte> bytes,
       throw SSTableCorruptionError{file_offset + cursor - kEntryFixedSize,
                                    "SSTable index metadata is invalid"};
     }
-    entry.first_key = read_string(bytes.first(payload_end), cursor, first_size, file_offset,
-                                  "SSTable index");
-    entry.last_key = read_string(bytes.first(payload_end), cursor, last_size, file_offset,
-                                 "SSTable index");
+    entry.first_key =
+        read_string(bytes.first(payload_end), cursor, first_size, file_offset, "SSTable index");
+    entry.last_key =
+        read_string(bytes.first(payload_end), cursor, last_size, file_offset, "SSTable index");
     if (entry.first_key > entry.last_key ||
         (!previous_last_key.empty() && entry.first_key <= previous_last_key)) {
-      throw SSTableCorruptionError{file_offset + cursor,
-                                   "SSTable index key ranges are invalid"};
+      throw SSTableCorruptionError{file_offset + cursor, "SSTable index key ranges are invalid"};
     }
     previous_last_key = entry.last_key;
     index.entries.push_back(std::move(entry));
   }
 
   if (cursor != payload_end) {
-    throw SSTableCorruptionError{file_offset + cursor,
-                                 "SSTable index contains trailing bytes"};
+    throw SSTableCorruptionError{file_offset + cursor, "SSTable index contains trailing bytes"};
   }
   return index;
 }
@@ -401,8 +389,7 @@ SSTableFooter parse_footer(const std::span<const std::byte> bytes,
   footer.min_sequence_number = read_uint64(bytes.subspan(44U, 8U));
   footer.max_sequence_number = read_uint64(bytes.subspan(52U, 8U));
   if (footer.index_size == 0U || footer.entry_count == 0U || footer.block_count == 0U ||
-      footer.min_sequence_number == 0U ||
-      footer.min_sequence_number > footer.max_sequence_number) {
+      footer.min_sequence_number == 0U || footer.min_sequence_number > footer.max_sequence_number) {
     throw SSTableCorruptionError{file_offset, "SSTable footer metadata is invalid"};
   }
   return footer;
@@ -412,4 +399,4 @@ std::size_t encoded_record_size(const DataBlock::Record& record) noexcept {
   return kRecordFixedSize + record.first.size() + record.second.value.size();
 }
 
-}  // namespace nebulakv::sstable_format
+} // namespace nebulakv::sstable_format

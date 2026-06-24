@@ -17,4 +17,4 @@ struct IndexBlock {
   std::vector<IndexEntry> entries;
 };
 
-}  // namespace nebulakv
+} // namespace nebulakv

@@ -1,10 +1,10 @@
-#include "nebulakv/network/grpc_client.hpp"
+#include "nebulakv/distributed/cluster_client.hpp"
 
 #include <charconv>
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <cstddef>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -41,8 +41,7 @@ struct Arguments {
 }
 
 template <typename Integer>
-[[nodiscard]] Integer parse_integer(const std::string_view text,
-                                    const std::string_view option) {
+[[nodiscard]] Integer parse_integer(const std::string_view text, const std::string_view option) {
   Integer value{};
   const char* begin = text.data();
   const char* end = begin + text.size();
@@ -53,8 +52,7 @@ template <typename Integer>
   return value;
 }
 
-[[nodiscard]] std::string_view require_value(const int argc, char** argv,
-                                             int& index,
+[[nodiscard]] std::string_view require_value(const int argc, char** argv, int& index,
                                              const std::string_view option) {
   if (index + 1 >= argc) {
     throw std::invalid_argument{std::string{option} + " requires a value"};
@@ -77,15 +75,15 @@ template <typename Integer>
     if (option == "--host") {
       arguments.host = require_value(argc, argv, index, option);
     } else if (option == "--port") {
-      arguments.port = parse_integer<std::uint16_t>(
-          require_value(argc, argv, index, option), option);
+      arguments.port =
+          parse_integer<std::uint16_t>(require_value(argc, argv, index, option), option);
     } else if (option == "--timeout-ms") {
-      const auto milliseconds = parse_integer<std::int64_t>(
-          require_value(argc, argv, index, option), option);
+      const auto milliseconds =
+          parse_integer<std::int64_t>(require_value(argc, argv, index, option), option);
       arguments.timeout = std::chrono::milliseconds{milliseconds};
     } else if (option == "--max-message-bytes") {
-      arguments.max_message_bytes = parse_integer<std::size_t>(
-          require_value(argc, argv, index, option), option);
+      arguments.max_message_bytes =
+          parse_integer<std::size_t>(require_value(argc, argv, index, option), option);
     } else {
       throw std::invalid_argument{"unknown option: " + std::string{option}};
     }
@@ -101,21 +99,21 @@ template <typename Integer>
 }
 
 [[nodiscard]] int report_rpc_error(const grpc::Status& status) {
-  std::cerr << "rpc_error_code=" << status.error_code() << '\n'
+  std::cerr << "rpc_error_code=" << static_cast<int>(status.error_code()) << '\n'
             << "rpc_error_message=" << status.error_message() << '\n';
   return 2;
 }
 
-}  // namespace
+} // namespace
 
 int main(const int argc, char** argv) {
   try {
     const Arguments arguments = parse_arguments(argc, argv);
-    nebulakv::network::GrpcClientOptions options;
-    options.address = arguments.host + ":" + std::to_string(arguments.port);
+    nebulakv::distributed::ClusterClientOptions options;
+    options.seed_addresses = {arguments.host + ":" + std::to_string(arguments.port)};
     options.timeout = arguments.timeout;
     options.max_message_bytes = arguments.max_message_bytes;
-    const nebulakv::network::GrpcClient client{std::move(options)};
+    nebulakv::distributed::ClusterClient client{std::move(options)};
 
     const std::string& operation = arguments.command.front();
     if (operation == "put") {
@@ -123,8 +121,7 @@ int main(const int argc, char** argv) {
         throw std::invalid_argument{"put requires a key and value"};
       }
       nebulakv::v1::PutResponse response;
-      const grpc::Status status = client.put(
-          arguments.command[1], arguments.command[2], response);
+      const grpc::Status status = client.put(arguments.command[1], arguments.command[2], response);
       if (!status.ok()) {
         return report_rpc_error(status);
       }
@@ -163,15 +160,12 @@ int main(const int argc, char** argv) {
     }
 
     if (operation == "batch-put") {
-      if (arguments.command.size() < 3U ||
-          (arguments.command.size() - 1U) % 2U != 0U) {
-        throw std::invalid_argument{
-            "batch-put requires one or more key/value pairs"};
+      if (arguments.command.size() < 3U || (arguments.command.size() - 1U) % 2U != 0U) {
+        throw std::invalid_argument{"batch-put requires one or more key/value pairs"};
       }
       std::vector<std::pair<std::string, std::string>> entries;
       for (std::size_t index = 1U; index < arguments.command.size(); index += 2U) {
-        entries.emplace_back(arguments.command[index],
-                             arguments.command[index + 1U]);
+        entries.emplace_back(arguments.command[index], arguments.command[index + 1U]);
       }
       nebulakv::v1::BatchPutResponse response;
       const grpc::Status status = client.batch_put(std::move(entries), response);
@@ -180,8 +174,7 @@ int main(const int argc, char** argv) {
       }
       std::cout << "success=" << response.success() << '\n'
                 << "writes_applied=" << response.writes_applied() << '\n'
-                << "last_sequence_number=" << response.last_sequence_number()
-                << '\n';
+                << "last_sequence_number=" << response.last_sequence_number() << '\n';
       return response.success() ? 0 : 3;
     }
 
@@ -196,8 +189,7 @@ int main(const int argc, char** argv) {
       }
       std::cout << "ready=" << response.ready() << '\n'
                 << "live_keys=" << response.live_keys() << '\n'
-                << "last_sequence_number=" << response.last_sequence_number()
-                << '\n'
+                << "last_sequence_number=" << response.last_sequence_number() << '\n'
                 << "level0_sstables=" << response.level0_sstables() << '\n'
                 << "level1_sstables=" << response.level1_sstables() << '\n'
                 << "cache_hit_ratio=" << response.cache_hit_ratio() << '\n'
@@ -205,8 +197,23 @@ int main(const int argc, char** argv) {
                 << "active_requests=" << response.active_requests() << '\n'
                 << "rejected_requests=" << response.rejected_requests() << '\n'
                 << "requests_total=" << response.requests_total() << '\n'
-                << "failed_requests_total="
-                << response.failed_requests_total() << '\n';
+                << "failed_requests_total=" << response.failed_requests_total() << '\n'
+                << "node_id=" << response.node_id() << '\n'
+                << "raft_role=" << response.raft_role() << '\n'
+                << "raft_term=" << response.raft_term() << '\n'
+                << "leader_id=" << response.leader_id() << '\n'
+                << "leader_address=" << response.leader_address() << '\n'
+                << "raft_commit_index=" << response.raft_commit_index() << '\n'
+                << "raft_last_applied=" << response.raft_last_applied() << '\n'
+                << "raft_last_log_index=" << response.raft_last_log_index() << '\n'
+                << "raft_snapshot_index=" << response.raft_snapshot_index() << '\n'
+                << "raft_elections_total=" << response.raft_elections_total() << '\n'
+                << "raft_replication_failures_total=" << response.raft_replication_failures_total()
+                << '\n'
+                << "raft_snapshots_created_total=" << response.raft_snapshots_created_total()
+                << '\n'
+                << "raft_snapshots_installed_total=" << response.raft_snapshots_installed_total()
+                << '\n';
       return response.ready() ? 0 : 5;
     }
 

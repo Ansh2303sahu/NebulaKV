@@ -11,8 +11,8 @@ std::size_t InMemoryKeyValueStore::TransparentStringHash::operator()(
   return std::hash<std::string_view>{}(value);
 }
 
-std::size_t InMemoryKeyValueStore::TransparentStringHash::operator()(
-    const std::string& value) const noexcept {
+std::size_t
+InMemoryKeyValueStore::TransparentStringHash::operator()(const std::string& value) const noexcept {
   return (*this)(std::string_view{value});
 }
 
@@ -61,5 +61,4 @@ std::size_t InMemoryKeyValueStore::size() const {
   return entries_.size();
 }
 
-
-}  // namespace nebulakv
+} // namespace nebulakv

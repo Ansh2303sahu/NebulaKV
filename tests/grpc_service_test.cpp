@@ -27,9 +27,9 @@ using nebulakv::network::GrpcServer;
 using nebulakv::network::GrpcServerOptions;
 using nebulakv::test::TemporaryDirectory;
 
-[[nodiscard]] PersistentStoreOptions store_options(
-    const TemporaryDirectory& directory,
-    const DurabilityMode durability = DurabilityMode::Sync) {
+[[nodiscard]] PersistentStoreOptions
+store_options(const TemporaryDirectory& directory,
+              const DurabilityMode durability = DurabilityMode::Sync) {
   PersistentStoreOptions options;
   options.wal_path = directory.file("nebulakv.wal");
   options.sstable_directory = directory.file("sstables");
@@ -63,8 +63,7 @@ TEST(GrpcServiceTest, SupportsRemotePutGetDeleteBatchAndStatus) {
   EXPECT_TRUE(get_response.found());
   EXPECT_EQ(get_response.value(), "Ansh");
 
-  std::vector<std::pair<std::string, std::string>> batch{{"a", "1"},
-                                                         {"b", "2"}};
+  std::vector<std::pair<std::string, std::string>> batch{{"a", "1"}, {"b", "2"}};
   nebulakv::v1::BatchPutResponse batch_response;
   ASSERT_TRUE(client.batch_put(std::move(batch), batch_response).ok());
   EXPECT_EQ(batch_response.writes_applied(), 2U);
@@ -111,8 +110,7 @@ TEST(GrpcServiceTest, HonorsExpiredClientDeadline) {
   auto channel = grpc::CreateChannel(address, grpc::InsecureChannelCredentials());
   auto stub = nebulakv::v1::KeyValueService::NewStub(channel);
   grpc::ClientContext context;
-  context.set_deadline(std::chrono::system_clock::now() -
-                       std::chrono::milliseconds{1});
+  context.set_deadline(std::chrono::system_clock::now() - std::chrono::milliseconds{1});
   nebulakv::v1::GetRequest request;
   request.set_key("key");
   nebulakv::v1::GetResponse response;
@@ -141,11 +139,10 @@ TEST(GrpcServiceTest, SupportsConcurrentClients) {
   for (std::size_t client_index = 0; client_index < kClients; ++client_index) {
     clients.emplace_back([&server, &all_requests_succeeded, client_index] {
       GrpcClient client = make_client(server);
-      for (std::size_t write_index = 0; write_index < kWritesPerClient;
-           ++write_index) {
+      for (std::size_t write_index = 0; write_index < kWritesPerClient; ++write_index) {
         nebulakv::v1::PutResponse response;
-        const std::string key = "client:" + std::to_string(client_index) + ':' +
-                                std::to_string(write_index);
+        const std::string key =
+            "client:" + std::to_string(client_index) + ':' + std::to_string(write_index);
         if (!client.put(key, "value", response).ok()) {
           all_requests_succeeded.store(false, std::memory_order_relaxed);
           return;
@@ -166,8 +163,7 @@ TEST(GrpcServiceTest, SupportsConcurrentClients) {
 TEST(GrpcServiceTest, GracefulShutdownFlushesAcknowledgedBatchWrites) {
   TemporaryDirectory directory;
   {
-    PersistentKeyValueStore store{
-        store_options(directory, DurabilityMode::Batch)};
+    PersistentKeyValueStore store{store_options(directory, DurabilityMode::Batch)};
     GrpcServerOptions server_options;
     server_options.listen_address = "127.0.0.1:0";
     GrpcServer server{store, server_options};
@@ -186,4 +182,4 @@ TEST(GrpcServiceTest, GracefulShutdownFlushesAcknowledgedBatchWrites) {
   EXPECT_EQ(reopened.get("durable"), "value");
 }
 
-}  // namespace
+} // namespace

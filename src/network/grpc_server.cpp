@@ -11,24 +11,20 @@ namespace nebulakv::network {
 namespace {
 
 [[nodiscard]] int checked_message_size(const std::size_t bytes) {
-  if (bytes == 0U ||
-      bytes > static_cast<std::size_t>(std::numeric_limits<int>::max())) {
-    throw std::invalid_argument{
-        "maximum message size must fit in a positive signed integer"};
+  if (bytes == 0U || bytes > static_cast<std::size_t>(std::numeric_limits<int>::max())) {
+    throw std::invalid_argument{"maximum message size must fit in a positive signed integer"};
   }
   return static_cast<int>(bytes);
 }
 
-}  // namespace
+} // namespace
 
 GrpcServer::GrpcServer(PersistentKeyValueStore& store, GrpcServerOptions options)
-    : store_{store},
-      options_{std::move(options)},
+    : store_{store}, options_{std::move(options)},
       executor_{options_.worker_threads, options_.request_queue_capacity},
-      processor_{store_, RequestProcessorOptions{options_.max_batch_entries,
-                                                  options_.max_batch_bytes}},
-      service_{processor_, executor_,
-               GrpcServiceOptions{options_.max_message_bytes}} {
+      processor_{store_,
+                 RequestProcessorOptions{options_.max_batch_entries, options_.max_batch_bytes}},
+      service_{processor_, executor_, GrpcServiceOptions{options_.max_message_bytes}} {
   if (options_.listen_address.empty()) {
     throw std::invalid_argument{"listen address must not be empty"};
   }
@@ -61,8 +57,8 @@ void GrpcServer::start() {
   const int max_message_size = checked_message_size(options_.max_message_bytes);
   builder.SetMaxReceiveMessageSize(max_message_size);
   builder.SetMaxSendMessageSize(max_message_size);
-  builder.AddListeningPort(options_.listen_address,
-                           grpc::InsecureServerCredentials(), &bound_port_);
+  builder.AddListeningPort(options_.listen_address, grpc::InsecureServerCredentials(),
+                           &bound_port_);
   builder.RegisterService(&service_);
   server_ = builder.BuildAndStart();
   if (!server_ || bound_port_ == 0) {
@@ -83,8 +79,7 @@ void GrpcServer::wait() {
   finish_shutdown();
 }
 
-void GrpcServer::request_shutdown(
-    const std::chrono::milliseconds grace_period) {
+void GrpcServer::request_shutdown(const std::chrono::milliseconds grace_period) {
   std::lock_guard lock{lifecycle_mutex_};
   if (!server_ || shutdown_requested_) {
     return;
@@ -96,17 +91,11 @@ void GrpcServer::request_shutdown(
 
 int GrpcServer::bound_port() const noexcept { return bound_port_; }
 
-const std::string& GrpcServer::listen_address() const noexcept {
-  return options_.listen_address;
-}
+const std::string& GrpcServer::listen_address() const noexcept { return options_.listen_address; }
 
-ServiceStatistics GrpcServer::service_statistics() const noexcept {
-  return service_.statistics();
-}
+ServiceStatistics GrpcServer::service_statistics() const noexcept { return service_.statistics(); }
 
-ExecutorStatistics GrpcServer::executor_statistics() const {
-  return executor_.statistics();
-}
+ExecutorStatistics GrpcServer::executor_statistics() const { return executor_.statistics(); }
 
 void GrpcServer::finish_shutdown() {
   {
@@ -125,4 +114,4 @@ void GrpcServer::finish_shutdown() {
   }
 }
 
-}  // namespace nebulakv::network
+} // namespace nebulakv::network

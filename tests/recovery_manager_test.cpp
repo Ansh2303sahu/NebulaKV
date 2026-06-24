@@ -144,4 +144,4 @@ TEST(RecoveryManagerTest, MissingWalProducesEmptyCleanReport) {
   EXPECT_EQ(destination.size(), 0U);
 }
 
-}  // namespace
+} // namespace

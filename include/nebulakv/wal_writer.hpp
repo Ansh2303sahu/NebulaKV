@@ -20,7 +20,7 @@ struct WalWriterOptions {
 };
 
 class WalWriter final {
- public:
+public:
   explicit WalWriter(WalWriterOptions options);
   ~WalWriter();
 
@@ -36,7 +36,7 @@ class WalWriter final {
   [[nodiscard]] std::uint64_t bytes_appended() const;
   [[nodiscard]] DurabilityMode durability_mode() const noexcept;
 
- private:
+private:
   void batch_flush_loop();
   void flush_locked();
   void throw_if_background_flush_failed_locked() const;
@@ -53,4 +53,4 @@ class WalWriter final {
   std::uint64_t bytes_appended_{0};
 };
 
-}  // namespace nebulakv
+} // namespace nebulakv

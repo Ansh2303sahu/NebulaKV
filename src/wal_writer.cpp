@@ -28,8 +28,7 @@ namespace {
     std::filesystem::create_directories(parent);
   }
 
-  const int file_descriptor =
-      ::open(path.c_str(), O_CREAT | O_WRONLY | O_APPEND | O_CLOEXEC, 0644);
+  const int file_descriptor = ::open(path.c_str(), O_CREAT | O_WRONLY | O_APPEND | O_CLOEXEC, 0644);
   if (file_descriptor < 0) {
     throw std::system_error{errno, std::generic_category(), "failed to open WAL file"};
   }
@@ -63,11 +62,10 @@ void sync_file(const int file_descriptor) {
   }
 }
 
-}  // namespace
+} // namespace
 
 WalWriter::WalWriter(WalWriterOptions options)
-    : file_descriptor_{open_wal_file(options.path)},
-      durability_mode_{options.durability_mode},
+    : file_descriptor_{open_wal_file(options.path)}, durability_mode_{options.durability_mode},
       batch_flush_interval_{options.batch_flush_interval} {
   if (batch_flush_interval_ <= std::chrono::milliseconds::zero()) {
     ::close(file_descriptor_);
@@ -138,8 +136,7 @@ void WalWriter::reset() {
     if (errno == EINTR) {
       continue;
     }
-    throw std::system_error{errno, std::generic_category(),
-                            "failed to truncate WAL file"};
+    throw std::system_error{errno, std::generic_category(), "failed to truncate WAL file"};
   }
   sync_file(file_descriptor_);
   bytes_appended_ = 0;
@@ -192,4 +189,4 @@ void WalWriter::throw_if_background_flush_failed_locked() const {
   }
 }
 
-}  // namespace nebulakv
+} // namespace nebulakv

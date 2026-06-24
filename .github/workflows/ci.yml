@@ -111,8 +111,8 @@ jobs:
       - name: Build
         run: cmake --build --preset benchmark --parallel 2
 
-  network-service:
-    name: gRPC server and client
+  distributed-cluster:
+    name: distributed cluster
     runs-on: ubuntu-24.04
     env:
       CC: gcc
@@ -126,6 +126,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes \
+            curl \
             ninja-build \
             protobuf-compiler \
             protobuf-compiler-grpc \
@@ -133,10 +134,23 @@ jobs:
             libgrpc++-dev
 
       - name: Configure
-        run: cmake --preset network-release
+        run: cmake --preset distributed-release
 
       - name: Build
-        run: cmake --build --preset network-release --parallel 2
+        run: cmake --build --preset distributed-release --parallel 2
 
       - name: Test
-        run: ctest --preset network-release
+        run: ctest --preset distributed-release
+
+      - name: Three-node failover smoke test
+        run: scripts/ci-cluster-smoke.sh build/distributed-release
+
+  container-build:
+    name: container build
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Build image
+        run: docker build --tag nebulakv:ci .

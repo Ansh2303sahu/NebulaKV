@@ -7,7 +7,7 @@
 namespace nebulakv {
 
 class KeyValueStore {
- public:
+public:
   virtual ~KeyValueStore() = default;
 
   virtual void put(std::string key, std::string value) = 0;
@@ -19,4 +19,4 @@ class KeyValueStore {
   [[nodiscard]] virtual bool exists(std::string_view key) const = 0;
 };
 
-}  // namespace nebulakv
+} // namespace nebulakv

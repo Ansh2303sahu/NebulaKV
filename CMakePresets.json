@@ -127,6 +127,26 @@
         "ENABLE_GRPC": "ON",
         "ENABLE_GRPC_INTEGRATION_TESTS": "OFF"
       }
+    },
+    {
+      "name": "distributed-debug",
+      "inherits": "network-debug",
+      "displayName": "Distributed gRPC Debug"
+    },
+    {
+      "name": "distributed-release",
+      "inherits": "network-release",
+      "displayName": "Distributed gRPC Release"
+    },
+    {
+      "name": "distributed-asan",
+      "inherits": "network-asan",
+      "displayName": "Distributed Address and Undefined Behaviour Sanitizers"
+    },
+    {
+      "name": "distributed-tsan",
+      "inherits": "network-tsan",
+      "displayName": "Distributed Thread Sanitizer"
     }
   ],
   "buildPresets": [
@@ -165,6 +185,22 @@
     {
       "name": "network-tsan",
       "configurePreset": "network-tsan"
+    },
+    {
+      "name": "distributed-debug",
+      "configurePreset": "distributed-debug"
+    },
+    {
+      "name": "distributed-release",
+      "configurePreset": "distributed-release"
+    },
+    {
+      "name": "distributed-asan",
+      "configurePreset": "distributed-asan"
+    },
+    {
+      "name": "distributed-tsan",
+      "configurePreset": "distributed-tsan"
     }
   ],
   "testPresets": [
@@ -236,6 +272,41 @@
       },
       "output": {
         "outputOnFailure": true
+      }
+    },
+    {
+      "name": "distributed-debug",
+      "configurePreset": "distributed-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "distributed-release",
+      "configurePreset": "distributed-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "distributed-asan",
+      "configurePreset": "distributed-asan",
+      "output": {
+        "outputOnFailure": true
+      },
+      "environment": {
+        "ASAN_OPTIONS": "detect_leaks=1:halt_on_error=1",
+        "UBSAN_OPTIONS": "print_stacktrace=1:halt_on_error=1"
+      }
+    },
+    {
+      "name": "distributed-tsan",
+      "configurePreset": "distributed-tsan",
+      "output": {
+        "outputOnFailure": true
+      },
+      "environment": {
+        "TSAN_OPTIONS": "halt_on_error=1"
       }
     }
   ]

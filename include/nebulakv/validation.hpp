@@ -7,4 +7,4 @@ namespace nebulakv {
 void validate_key(std::string_view key);
 void validate_value(std::string_view value);
 
-}  // namespace nebulakv
+} // namespace nebulakv

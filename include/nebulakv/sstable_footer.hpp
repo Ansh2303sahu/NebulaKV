@@ -13,4 +13,4 @@ struct SSTableFooter {
   std::uint64_t max_sequence_number{0};
 };
 
-}  // namespace nebulakv
+} // namespace nebulakv

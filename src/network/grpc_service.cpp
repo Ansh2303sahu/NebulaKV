@@ -14,8 +14,7 @@ namespace nebulakv::network {
 namespace {
 
 [[nodiscard]] bool deadline_expired(const grpc::ServerContext& context) {
-  return context.IsCancelled() ||
-         std::chrono::system_clock::now() >= context.deadline();
+  return context.IsCancelled() || std::chrono::system_clock::now() >= context.deadline();
 }
 
 void fill_error(v1::ErrorDetail* target, const ApiError& error) {
@@ -27,19 +26,16 @@ void fill_error(v1::ErrorDetail* target, const ApiError& error) {
 }
 
 [[nodiscard]] grpc::Status queue_full_status() {
-  return {grpc::StatusCode::RESOURCE_EXHAUSTED,
-          "server request queue is full"};
+  return {grpc::StatusCode::RESOURCE_EXHAUSTED, "server request queue is full"};
 }
 
 [[nodiscard]] grpc::Status deadline_status() {
-  return {grpc::StatusCode::DEADLINE_EXCEEDED,
-          "request deadline expired before completion"};
+  return {grpc::StatusCode::DEADLINE_EXCEEDED, "request deadline expired before completion"};
 }
 
-}  // namespace
+} // namespace
 
-KeyValueServiceImpl::KeyValueServiceImpl(RequestProcessor& processor,
-                                         BoundedExecutor& executor,
+KeyValueServiceImpl::KeyValueServiceImpl(RequestProcessor& processor, BoundedExecutor& executor,
                                          GrpcServiceOptions options)
     : processor_{processor}, executor_{executor}, options_{options} {
   if (options_.max_request_bytes == 0U) {
@@ -47,14 +43,12 @@ KeyValueServiceImpl::KeyValueServiceImpl(RequestProcessor& processor,
   }
 }
 
-grpc::Status KeyValueServiceImpl::Put(grpc::ServerContext* context,
-                                      const v1::PutRequest* request,
+grpc::Status KeyValueServiceImpl::Put(grpc::ServerContext* context, const v1::PutRequest* request,
                                       v1::PutResponse* response) {
   requests_total_.fetch_add(1U, std::memory_order_relaxed);
   if (request_too_large(request->ByteSizeLong())) {
     record_failure();
-    return {grpc::StatusCode::RESOURCE_EXHAUSTED,
-            "request exceeds the configured maximum size"};
+    return {grpc::StatusCode::RESOURCE_EXHAUSTED, "request exceeds the configured maximum size"};
   }
   if (deadline_expired(*context)) {
     record_failure();
@@ -65,9 +59,10 @@ grpc::Status KeyValueServiceImpl::Put(grpc::ServerContext* context,
   auto future = executor_.try_submit(
       [this, deadline, key = request->key(), value = request->value()]() mutable {
         if (std::chrono::system_clock::now() >= deadline) {
-          return PutResult{false, 0U,
-                           {ApiErrorCode::DeadlineExceeded,
-                            "request expired while waiting for a worker"}};
+          return PutResult{
+              false,
+              0U,
+              {ApiErrorCode::DeadlineExceeded, "request expired while waiting for a worker"}};
         }
         return processor_.put(std::move(key), std::move(value));
       });
@@ -91,14 +86,12 @@ grpc::Status KeyValueServiceImpl::Put(grpc::ServerContext* context,
   return grpc::Status::OK;
 }
 
-grpc::Status KeyValueServiceImpl::Get(grpc::ServerContext* context,
-                                      const v1::GetRequest* request,
+grpc::Status KeyValueServiceImpl::Get(grpc::ServerContext* context, const v1::GetRequest* request,
                                       v1::GetResponse* response) {
   requests_total_.fetch_add(1U, std::memory_order_relaxed);
   if (request_too_large(request->ByteSizeLong())) {
     record_failure();
-    return {grpc::StatusCode::RESOURCE_EXHAUSTED,
-            "request exceeds the configured maximum size"};
+    return {grpc::StatusCode::RESOURCE_EXHAUSTED, "request exceeds the configured maximum size"};
   }
   if (deadline_expired(*context)) {
     record_failure();
@@ -108,9 +101,10 @@ grpc::Status KeyValueServiceImpl::Get(grpc::ServerContext* context,
   const auto deadline = context->deadline();
   auto future = executor_.try_submit([this, deadline, key = request->key()] {
     if (std::chrono::system_clock::now() >= deadline) {
-      return GetResult{false, {},
-                       {ApiErrorCode::DeadlineExceeded,
-                        "request expired while waiting for a worker"}};
+      return GetResult{
+          false,
+          {},
+          {ApiErrorCode::DeadlineExceeded, "request expired while waiting for a worker"}};
     }
     return processor_.get(key);
   });
@@ -142,8 +136,7 @@ grpc::Status KeyValueServiceImpl::Delete(grpc::ServerContext* context,
   requests_total_.fetch_add(1U, std::memory_order_relaxed);
   if (request_too_large(request->ByteSizeLong())) {
     record_failure();
-    return {grpc::StatusCode::RESOURCE_EXHAUSTED,
-            "request exceeds the configured maximum size"};
+    return {grpc::StatusCode::RESOURCE_EXHAUSTED, "request exceeds the configured maximum size"};
   }
   if (deadline_expired(*context)) {
     record_failure();
@@ -153,9 +146,8 @@ grpc::Status KeyValueServiceImpl::Delete(grpc::ServerContext* context,
   const auto deadline = context->deadline();
   auto future = executor_.try_submit([this, deadline, key = request->key()] {
     if (std::chrono::system_clock::now() >= deadline) {
-      return DeleteResult{false,
-                          {ApiErrorCode::DeadlineExceeded,
-                           "request expired while waiting for a worker"}};
+      return DeleteResult{
+          false, {ApiErrorCode::DeadlineExceeded, "request expired while waiting for a worker"}};
     }
     return processor_.remove(key);
   });
@@ -178,14 +170,13 @@ grpc::Status KeyValueServiceImpl::Delete(grpc::ServerContext* context,
   return grpc::Status::OK;
 }
 
-grpc::Status KeyValueServiceImpl::BatchPut(
-    grpc::ServerContext* context, const v1::BatchPutRequest* request,
-    v1::BatchPutResponse* response) {
+grpc::Status KeyValueServiceImpl::BatchPut(grpc::ServerContext* context,
+                                           const v1::BatchPutRequest* request,
+                                           v1::BatchPutResponse* response) {
   requests_total_.fetch_add(1U, std::memory_order_relaxed);
   if (request_too_large(request->ByteSizeLong())) {
     record_failure();
-    return {grpc::StatusCode::RESOURCE_EXHAUSTED,
-            "request exceeds the configured maximum size"};
+    return {grpc::StatusCode::RESOURCE_EXHAUSTED, "request exceeds the configured maximum size"};
   }
   if (deadline_expired(*context)) {
     record_failure();
@@ -199,16 +190,16 @@ grpc::Status KeyValueServiceImpl::BatchPut(
   }
 
   const auto deadline = context->deadline();
-  auto future = executor_.try_submit(
-      [this, deadline, entries = std::move(entries)]() mutable {
-        if (std::chrono::system_clock::now() >= deadline) {
-          return BatchPutResult{
-              false, 0U, 0U,
-              {ApiErrorCode::DeadlineExceeded,
-               "request expired while waiting for a worker"}};
-        }
-        return processor_.batch_put(std::move(entries));
-      });
+  auto future = executor_.try_submit([this, deadline, entries = std::move(entries)]() mutable {
+    if (std::chrono::system_clock::now() >= deadline) {
+      return BatchPutResult{
+          false,
+          0U,
+          0U,
+          {ApiErrorCode::DeadlineExceeded, "request expired while waiting for a worker"}};
+    }
+    return processor_.batch_put(std::move(entries));
+  });
   if (!future) {
     record_failure();
     return queue_full_status();
@@ -240,8 +231,7 @@ grpc::Status KeyValueServiceImpl::Status(grpc::ServerContext* context,
     return deadline_status();
   }
 
-  const StatusSnapshot snapshot =
-      processor_.status(executor_.statistics(), statistics());
+  const StatusSnapshot snapshot = processor_.status(executor_.statistics(), statistics());
   response->set_ready(snapshot.ready);
   response->set_live_keys(snapshot.live_keys);
   response->set_last_sequence_number(snapshot.last_sequence_number);
@@ -265,26 +255,24 @@ ServiceStatistics KeyValueServiceImpl::statistics() const noexcept {
           failed_requests_total_.load(std::memory_order_relaxed)};
 }
 
-bool KeyValueServiceImpl::request_too_large(
-    const std::size_t encoded_size) const noexcept {
+bool KeyValueServiceImpl::request_too_large(const std::size_t encoded_size) const noexcept {
   return encoded_size > options_.max_request_bytes;
 }
 
-grpc::Status KeyValueServiceImpl::status_from_error(
-    const ApiError& error) const {
+grpc::Status KeyValueServiceImpl::status_from_error(const ApiError& error) const {
   switch (error.code) {
-    case ApiErrorCode::None:
-      return grpc::Status::OK;
-    case ApiErrorCode::InvalidArgument:
-      return {grpc::StatusCode::INVALID_ARGUMENT, error.message};
-    case ApiErrorCode::ResourceExhausted:
-      return {grpc::StatusCode::RESOURCE_EXHAUSTED, error.message};
-    case ApiErrorCode::DeadlineExceeded:
-      return {grpc::StatusCode::DEADLINE_EXCEEDED, error.message};
-    case ApiErrorCode::Unavailable:
-      return {grpc::StatusCode::UNAVAILABLE, error.message};
-    case ApiErrorCode::Internal:
-      return {grpc::StatusCode::INTERNAL, error.message};
+  case ApiErrorCode::None:
+    return grpc::Status::OK;
+  case ApiErrorCode::InvalidArgument:
+    return {grpc::StatusCode::INVALID_ARGUMENT, error.message};
+  case ApiErrorCode::ResourceExhausted:
+    return {grpc::StatusCode::RESOURCE_EXHAUSTED, error.message};
+  case ApiErrorCode::DeadlineExceeded:
+    return {grpc::StatusCode::DEADLINE_EXCEEDED, error.message};
+  case ApiErrorCode::Unavailable:
+    return {grpc::StatusCode::UNAVAILABLE, error.message};
+  case ApiErrorCode::Internal:
+    return {grpc::StatusCode::INTERNAL, error.message};
   }
   return {grpc::StatusCode::INTERNAL, "unknown service error"};
 }
@@ -293,4 +281,4 @@ void KeyValueServiceImpl::record_failure() noexcept {
   failed_requests_total_.fetch_add(1U, std::memory_order_relaxed);
 }
 
-}  // namespace nebulakv::network
+} // namespace nebulakv::network

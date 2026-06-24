@@ -25,11 +25,9 @@ struct SSTableLookupStatistics {
 };
 
 class SSTableReader final {
- public:
-  explicit SSTableReader(
-      std::filesystem::path path,
-      std::shared_ptr<BlockCache> block_cache = {},
-      std::shared_ptr<const BloomFilter> bloom_filter = {});
+public:
+  explicit SSTableReader(std::filesystem::path path, std::shared_ptr<BlockCache> block_cache = {},
+                         std::shared_ptr<const BloomFilter> bloom_filter = {});
   ~SSTableReader();
 
   [[nodiscard]] std::optional<Entry> get(std::string_view key) const;
@@ -38,14 +36,12 @@ class SSTableReader final {
   [[nodiscard]] const IndexBlock& index() const noexcept;
   [[nodiscard]] const SSTableFooter& footer() const noexcept;
   [[nodiscard]] bool uses_bloom_filter() const noexcept;
-  [[nodiscard]] std::optional<BloomFilterStatistics> bloom_filter_statistics()
-      const noexcept;
+  [[nodiscard]] std::optional<BloomFilterStatistics> bloom_filter_statistics() const noexcept;
   [[nodiscard]] SSTableLookupStatistics lookup_statistics() const noexcept;
   void reset_lookup_statistics() noexcept;
 
- private:
-  [[nodiscard]] BlockCache::BlockPointer read_data_block(
-      const IndexEntry& index_entry) const;
+private:
+  [[nodiscard]] BlockCache::BlockPointer read_data_block(const IndexEntry& index_entry) const;
 
   std::filesystem::path path_;
   int descriptor_{-1};
@@ -59,4 +55,4 @@ class SSTableReader final {
   mutable std::atomic<std::uint64_t> bloom_negatives_{0};
 };
 
-}  // namespace nebulakv
+} // namespace nebulakv

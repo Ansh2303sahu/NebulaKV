@@ -6,11 +6,11 @@
 #include <cerrno>
 #include <charconv>
 #include <chrono>
+#include <csignal>
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <csignal>
 #include <ctime>
-#include <cstddef>
 #include <filesystem>
 #include <iostream>
 #include <stdexcept>
@@ -54,8 +54,7 @@ struct Arguments {
 }
 
 template <typename Integer>
-[[nodiscard]] Integer parse_integer(const std::string_view text,
-                                    const std::string_view option) {
+[[nodiscard]] Integer parse_integer(const std::string_view text, const std::string_view option) {
   Integer value{};
   const char* begin = text.data();
   const char* end = begin + text.size();
@@ -66,8 +65,7 @@ template <typename Integer>
   return value;
 }
 
-[[nodiscard]] std::string_view require_value(const int argc, char** argv,
-                                             int& index,
+[[nodiscard]] std::string_view require_value(const int argc, char** argv, int& index,
                                              const std::string_view option) {
   if (index + 1 >= argc) {
     throw std::invalid_argument{std::string{option} + " requires a value"};
@@ -76,8 +74,7 @@ template <typename Integer>
   return argv[index];
 }
 
-[[nodiscard]] nebulakv::DurabilityMode parse_durability(
-    const std::string_view value) {
+[[nodiscard]] nebulakv::DurabilityMode parse_durability(const std::string_view value) {
   if (value == "sync") {
     return nebulakv::DurabilityMode::Sync;
   }
@@ -100,28 +97,27 @@ template <typename Integer>
     if (option == "--host") {
       arguments.host = require_value(argc, argv, index, option);
     } else if (option == "--port") {
-      arguments.port = parse_integer<std::uint16_t>(
-          require_value(argc, argv, index, option), option);
+      arguments.port =
+          parse_integer<std::uint16_t>(require_value(argc, argv, index, option), option);
     } else if (option == "--data-dir") {
       arguments.data_directory = require_value(argc, argv, index, option);
     } else if (option == "--workers") {
-      arguments.workers = parse_integer<std::size_t>(
-          require_value(argc, argv, index, option), option);
+      arguments.workers =
+          parse_integer<std::size_t>(require_value(argc, argv, index, option), option);
     } else if (option == "--queue-capacity") {
-      arguments.queue_capacity = parse_integer<std::size_t>(
-          require_value(argc, argv, index, option), option);
+      arguments.queue_capacity =
+          parse_integer<std::size_t>(require_value(argc, argv, index, option), option);
     } else if (option == "--max-message-bytes") {
-      arguments.max_message_bytes = parse_integer<std::size_t>(
-          require_value(argc, argv, index, option), option);
+      arguments.max_message_bytes =
+          parse_integer<std::size_t>(require_value(argc, argv, index, option), option);
     } else if (option == "--max-batch-entries") {
-      arguments.max_batch_entries = parse_integer<std::size_t>(
-          require_value(argc, argv, index, option), option);
+      arguments.max_batch_entries =
+          parse_integer<std::size_t>(require_value(argc, argv, index, option), option);
     } else if (option == "--max-batch-bytes") {
-      arguments.max_batch_bytes = parse_integer<std::size_t>(
-          require_value(argc, argv, index, option), option);
+      arguments.max_batch_bytes =
+          parse_integer<std::size_t>(require_value(argc, argv, index, option), option);
     } else if (option == "--durability") {
-      arguments.durability =
-          parse_durability(require_value(argc, argv, index, option));
+      arguments.durability = parse_durability(require_value(argc, argv, index, option));
     } else if (option == "--checkpoint-on-shutdown") {
       arguments.checkpoint_on_shutdown = true;
     } else {
@@ -131,7 +127,7 @@ template <typename Integer>
   return arguments;
 }
 
-}  // namespace
+} // namespace
 
 int main(const int argc, char** argv) {
   try {
@@ -153,8 +149,7 @@ int main(const int argc, char** argv) {
     nebulakv::PersistentKeyValueStore store{std::move(store_options)};
 
     nebulakv::network::GrpcServerOptions server_options;
-    server_options.listen_address =
-        arguments.host + ":" + std::to_string(arguments.port);
+    server_options.listen_address = arguments.host + ":" + std::to_string(arguments.port);
     server_options.worker_threads = arguments.workers;
     server_options.request_queue_capacity = arguments.queue_capacity;
     server_options.max_message_bytes = arguments.max_message_bytes;
@@ -166,11 +161,9 @@ int main(const int argc, char** argv) {
     server.start();
 
     std::cout << "NebulaKV gRPC server\n"
-              << "listen_address=" << arguments.host << ':' << server.bound_port()
-              << '\n'
+              << "listen_address=" << arguments.host << ':' << server.bound_port() << '\n'
               << "data_directory=" << arguments.data_directory << '\n'
-              << "durability=" << nebulakv::to_string(store.durability_mode())
-              << '\n'
+              << "durability=" << nebulakv::to_string(store.durability_mode()) << '\n'
               << "worker_threads=" << arguments.workers << '\n'
               << "queue_capacity=" << arguments.queue_capacity << '\n'
               << "max_message_bytes=" << arguments.max_message_bytes << '\n';
@@ -201,8 +194,7 @@ int main(const int argc, char** argv) {
     const auto executor = server.executor_statistics();
     std::cout << "shutdown=complete\n"
               << "requests_total=" << service.requests_total << '\n'
-              << "failed_requests_total=" << service.failed_requests_total
-              << '\n'
+              << "failed_requests_total=" << service.failed_requests_total << '\n'
               << "rejected_requests=" << executor.rejected_tasks << '\n';
   } catch (const std::exception& error) {
     std::cerr << "NebulaKV server failed: " << error.what() << '\n';

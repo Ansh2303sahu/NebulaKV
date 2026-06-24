@@ -13,15 +13,13 @@ namespace nebulakv::network {
 namespace {
 
 [[nodiscard]] int checked_message_size(const std::size_t bytes) {
-  if (bytes == 0U ||
-      bytes > static_cast<std::size_t>(std::numeric_limits<int>::max())) {
-    throw std::invalid_argument{
-        "maximum message size must fit in a positive signed integer"};
+  if (bytes == 0U || bytes > static_cast<std::size_t>(std::numeric_limits<int>::max())) {
+    throw std::invalid_argument{"maximum message size must fit in a positive signed integer"};
   }
   return static_cast<int>(bytes);
 }
 
-}  // namespace
+} // namespace
 
 GrpcClient::GrpcClient(GrpcClientOptions options) : options_{std::move(options)} {
   if (options_.address.empty()) {
@@ -35,13 +33,12 @@ GrpcClient::GrpcClient(GrpcClientOptions options) : options_{std::move(options)}
   const int max_message_size = checked_message_size(options_.max_message_bytes);
   arguments.SetMaxReceiveMessageSize(max_message_size);
   arguments.SetMaxSendMessageSize(max_message_size);
-  auto channel = grpc::CreateCustomChannel(
-      options_.address, grpc::InsecureChannelCredentials(), arguments);
+  auto channel =
+      grpc::CreateCustomChannel(options_.address, grpc::InsecureChannelCredentials(), arguments);
   stub_ = v1::KeyValueService::NewStub(std::move(channel));
 }
 
-grpc::Status GrpcClient::put(std::string key, std::string value,
-                             v1::PutResponse& response) const {
+grpc::Status GrpcClient::put(std::string key, std::string value, v1::PutResponse& response) const {
   grpc::ClientContext context;
   set_deadline(context);
   v1::PutRequest request;
@@ -50,8 +47,7 @@ grpc::Status GrpcClient::put(std::string key, std::string value,
   return stub_->Put(&context, request, &response);
 }
 
-grpc::Status GrpcClient::get(std::string key,
-                             v1::GetResponse& response) const {
+grpc::Status GrpcClient::get(std::string key, v1::GetResponse& response) const {
   grpc::ClientContext context;
   set_deadline(context);
   v1::GetRequest request;
@@ -59,8 +55,7 @@ grpc::Status GrpcClient::get(std::string key,
   return stub_->Get(&context, request, &response);
 }
 
-grpc::Status GrpcClient::remove(std::string key,
-                                v1::DeleteResponse& response) const {
+grpc::Status GrpcClient::remove(std::string key, v1::DeleteResponse& response) const {
   grpc::ClientContext context;
   set_deadline(context);
   v1::DeleteRequest request;
@@ -68,9 +63,8 @@ grpc::Status GrpcClient::remove(std::string key,
   return stub_->Delete(&context, request, &response);
 }
 
-grpc::Status GrpcClient::batch_put(
-    std::vector<std::pair<std::string, std::string>> entries,
-    v1::BatchPutResponse& response) const {
+grpc::Status GrpcClient::batch_put(std::vector<std::pair<std::string, std::string>> entries,
+                                   v1::BatchPutResponse& response) const {
   grpc::ClientContext context;
   set_deadline(context);
   v1::BatchPutRequest request;
@@ -93,4 +87,4 @@ void GrpcClient::set_deadline(grpc::ClientContext& context) const {
   context.set_deadline(std::chrono::system_clock::now() + options_.timeout);
 }
 
-}  // namespace nebulakv::network
+} // namespace nebulakv::network

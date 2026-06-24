@@ -13,4 +13,4 @@ struct Entry {
   friend bool operator==(const Entry&, const Entry&) = default;
 };
 
-}  // namespace nebulakv
+} // namespace nebulakv

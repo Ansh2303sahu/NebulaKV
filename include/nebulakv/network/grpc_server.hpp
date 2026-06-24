@@ -26,7 +26,7 @@ struct GrpcServerOptions {
 };
 
 class GrpcServer final {
- public:
+public:
   GrpcServer(PersistentKeyValueStore& store, GrpcServerOptions options = {});
   ~GrpcServer();
 
@@ -37,15 +37,14 @@ class GrpcServer final {
 
   void start();
   void wait();
-  void request_shutdown(
-      std::chrono::milliseconds grace_period = std::chrono::seconds{10});
+  void request_shutdown(std::chrono::milliseconds grace_period = std::chrono::seconds{10});
 
   [[nodiscard]] int bound_port() const noexcept;
   [[nodiscard]] const std::string& listen_address() const noexcept;
   [[nodiscard]] ServiceStatistics service_statistics() const noexcept;
   [[nodiscard]] ExecutorStatistics executor_statistics() const;
 
- private:
+private:
   void finish_shutdown();
 
   PersistentKeyValueStore& store_;
@@ -61,4 +60,4 @@ class GrpcServer final {
   bool shutdown_finished_{false};
 };
 
-}  // namespace nebulakv::network
+} // namespace nebulakv::network

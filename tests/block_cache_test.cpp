@@ -14,15 +14,13 @@ namespace nebulakv {
 namespace {
 
 [[nodiscard]] std::shared_ptr<const DataBlock> make_block(const std::string& key,
-                                                           const std::string& value) {
+                                                          const std::string& value) {
   auto block = std::make_shared<DataBlock>();
   block->records.emplace_back(key, Entry{value, 1U, false});
   return block;
 }
 
-TEST(BlockCacheTest, RejectsZeroCapacity) {
-  EXPECT_THROW(BlockCache(0U), std::invalid_argument);
-}
+TEST(BlockCacheTest, RejectsZeroCapacity) { EXPECT_THROW(BlockCache(0U), std::invalid_argument); }
 
 TEST(BlockCacheTest, RecordsMissThenHit) {
   const auto block = make_block("key", "value");
@@ -130,5 +128,5 @@ TEST(BlockCacheTest, SupportsConcurrentReads) {
   EXPECT_EQ(cache.statistics().hits, thread_count * reads_per_thread);
 }
 
-}  // namespace
-}  // namespace nebulakv
+} // namespace
+} // namespace nebulakv

@@ -22,4 +22,4 @@ void validate_value(const std::string_view value) {
   }
 }
 
-}  // namespace nebulakv
+} // namespace nebulakv

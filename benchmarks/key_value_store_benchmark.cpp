@@ -18,8 +18,7 @@ constexpr std::size_t kNoRotationLimit = std::numeric_limits<std::size_t>::max()
 }
 
 void report_bytes(benchmark::State& state, const std::size_t bytes_per_iteration) {
-  state.SetBytesProcessed(state.iterations() *
-                          static_cast<std::int64_t>(bytes_per_iteration));
+  state.SetBytesProcessed(state.iterations() * static_cast<std::int64_t>(bytes_per_iteration));
 }
 
 void benchmark_hash_store_get(benchmark::State& state) {
@@ -81,8 +80,7 @@ void benchmark_sorted_memtable_put_update(benchmark::State& state) {
 }
 
 void benchmark_memtable_set_get(benchmark::State& state) {
-  nebulakv::MemTableSet store{
-      nebulakv::MemTableOptions{.max_memory_bytes = kNoRotationLimit}};
+  nebulakv::MemTableSet store{nebulakv::MemTableOptions{.max_memory_bytes = kNoRotationLimit}};
   const std::size_t bytes = value_size(state);
   store.put("benchmark-key", std::string(bytes, 'v'));
 
@@ -93,14 +91,12 @@ void benchmark_memtable_set_get(benchmark::State& state) {
   }
 
   report_bytes(state, bytes);
-  state.counters["immutable_tables"] =
-      static_cast<double>(store.immutable_table_count());
+  state.counters["immutable_tables"] = static_cast<double>(store.immutable_table_count());
   state.counters["active_bytes"] = static_cast<double>(store.active_memory_usage());
 }
 
 void benchmark_memtable_set_put_update(benchmark::State& state) {
-  nebulakv::MemTableSet store{
-      nebulakv::MemTableOptions{.max_memory_bytes = kNoRotationLimit}};
+  nebulakv::MemTableSet store{nebulakv::MemTableOptions{.max_memory_bytes = kNoRotationLimit}};
   const std::size_t bytes = value_size(state);
   const std::string value(bytes, 'v');
 
@@ -111,20 +107,15 @@ void benchmark_memtable_set_put_update(benchmark::State& state) {
   }
 
   report_bytes(state, bytes);
-  state.counters["immutable_tables"] =
-      static_cast<double>(store.immutable_table_count());
+  state.counters["immutable_tables"] = static_cast<double>(store.immutable_table_count());
   state.counters["active_bytes"] = static_cast<double>(store.active_memory_usage());
 }
 
-}  // namespace
+} // namespace
 
 BENCHMARK(benchmark_hash_store_get)->RangeMultiplier(8)->Range(8, 8 << 15);
 BENCHMARK(benchmark_hash_store_put_update)->RangeMultiplier(8)->Range(8, 8 << 15);
 BENCHMARK(benchmark_sorted_memtable_get)->RangeMultiplier(8)->Range(8, 8 << 15);
-BENCHMARK(benchmark_sorted_memtable_put_update)
-    ->RangeMultiplier(8)
-    ->Range(8, 8 << 15);
+BENCHMARK(benchmark_sorted_memtable_put_update)->RangeMultiplier(8)->Range(8, 8 << 15);
 BENCHMARK(benchmark_memtable_set_get)->RangeMultiplier(8)->Range(8, 8 << 15);
-BENCHMARK(benchmark_memtable_set_put_update)
-    ->RangeMultiplier(8)
-    ->Range(8, 8 << 15);
+BENCHMARK(benchmark_memtable_set_put_update)->RangeMultiplier(8)->Range(8, 8 << 15);

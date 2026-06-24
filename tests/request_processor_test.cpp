@@ -20,8 +20,7 @@ using nebulakv::network::RequestProcessorOptions;
 using nebulakv::network::ServiceStatistics;
 using nebulakv::test::TemporaryDirectory;
 
-[[nodiscard]] PersistentStoreOptions store_options(
-    const TemporaryDirectory& directory) {
+[[nodiscard]] PersistentStoreOptions store_options(const TemporaryDirectory& directory) {
   PersistentStoreOptions options;
   options.wal_path = directory.file("nebulakv.wal");
   options.sstable_directory = directory.file("sstables");
@@ -100,18 +99,13 @@ TEST(RequestProcessorTest, EnforcesBatchLimits) {
   TemporaryDirectory directory;
   PersistentKeyValueStore store{store_options(directory)};
   RequestProcessor processor{
-      store, RequestProcessorOptions{.max_batch_entries = 2U,
-                                     .max_batch_bytes = 8U}};
+      store, RequestProcessorOptions{.max_batch_entries = 2U, .max_batch_bytes = 8U}};
 
-  std::vector<std::pair<std::string, std::string>> too_many{{"a", "1"},
-                                                            {"b", "2"},
-                                                            {"c", "3"}};
-  EXPECT_EQ(processor.batch_put(std::move(too_many)).error.code,
-            ApiErrorCode::InvalidArgument);
+  std::vector<std::pair<std::string, std::string>> too_many{{"a", "1"}, {"b", "2"}, {"c", "3"}};
+  EXPECT_EQ(processor.batch_put(std::move(too_many)).error.code, ApiErrorCode::InvalidArgument);
 
   std::vector<std::pair<std::string, std::string>> too_large{{"key", "123456"}};
-  EXPECT_EQ(processor.batch_put(std::move(too_large)).error.code,
-            ApiErrorCode::InvalidArgument);
+  EXPECT_EQ(processor.batch_put(std::move(too_large)).error.code, ApiErrorCode::InvalidArgument);
 }
 
 TEST(RequestProcessorTest, ReportsStorageAndQueueStatus) {
@@ -136,4 +130,4 @@ TEST(RequestProcessorTest, ReportsStorageAndQueueStatus) {
   EXPECT_EQ(status.failed_requests_total, 1U);
 }
 
-}  // namespace
+} // namespace

@@ -26,11 +26,9 @@ MemTable::Snapshot make_snapshot(const std::size_t count) {
   return entries;
 }
 
-SSTableMetadata write_table(const std::filesystem::path& path,
-                            const MemTable::Snapshot& entries,
+SSTableMetadata write_table(const std::filesystem::path& path, const MemTable::Snapshot& entries,
                             const std::size_t block_size = 128U) {
-  return SSTableWriter::write(
-      entries, SSTableWriterOptions{path, block_size, 7U});
+  return SSTableWriter::write(entries, SSTableWriterOptions{path, block_size, 7U});
 }
 
 TEST(SSTableWriterReaderTest, RoundTripsSortedEntries) {
@@ -131,13 +129,10 @@ TEST(SSTableWriterReaderTest, RejectsEmptyInput) {
 
 TEST(SSTableWriterReaderTest, RejectsUnsortedInput) {
   test::TemporaryDirectory directory;
-  MemTable::Snapshot entries{{"z", Entry{"1", 1U, false}},
-                             {"a", Entry{"2", 2U, false}}};
+  MemTable::Snapshot entries{{"z", Entry{"1", 1U, false}}, {"a", Entry{"2", 2U, false}}};
 
-  EXPECT_THROW(write_table(directory.file("unsorted.sst"), entries),
-               std::invalid_argument);
+  EXPECT_THROW(write_table(directory.file("unsorted.sst"), entries), std::invalid_argument);
 }
-
 
 TEST(SSTableWriterReaderTest, PointLookupReadsOnlyTheIndexedBlock) {
   test::TemporaryDirectory directory;
@@ -150,8 +145,7 @@ TEST(SSTableWriterReaderTest, PointLookupReadsOnlyTheIndexedBlock) {
 
   const SSTableReader reader{path};
   EXPECT_EQ(reader.get("key-1000")->value, "value-0");
-  EXPECT_THROW(static_cast<void>(reader.get("key-1039")),
-               SSTableCorruptionError);
+  EXPECT_THROW(static_cast<void>(reader.get("key-1039")), SSTableCorruptionError);
 }
 
 TEST(SSTableWriterReaderTest, DetectsCorruptedDataBlockChecksum) {
@@ -198,9 +192,8 @@ TEST(SSTableWriterReaderTest, DetectsTruncatedFooter) {
 TEST(SSTableWriterReaderTest, FooterAndHeaderSequenceRangesMatch) {
   test::TemporaryDirectory directory;
   const auto path = directory.file("sequence.sst");
-  MemTable::Snapshot entries{{"a", Entry{"1", 10U, false}},
-                             {"b", Entry{"2", 20U, false}},
-                             {"c", Entry{"3", 15U, false}}};
+  MemTable::Snapshot entries{
+      {"a", Entry{"1", 10U, false}}, {"b", Entry{"2", 20U, false}}, {"c", Entry{"3", 15U, false}}};
 
   write_table(path, entries);
   const SSTableReader reader{path};
@@ -211,5 +204,5 @@ TEST(SSTableWriterReaderTest, FooterAndHeaderSequenceRangesMatch) {
   EXPECT_EQ(reader.footer().max_sequence_number, 20U);
 }
 
-}  // namespace
-}  // namespace nebulakv
+} // namespace
+} // namespace nebulakv

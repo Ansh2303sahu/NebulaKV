@@ -19,7 +19,7 @@ void append_bytes(std::vector<std::byte>& destination, const std::string_view va
   destination.insert(destination.end(), begin, begin + value.size());
 }
 
-}  // namespace
+} // namespace
 
 void append_uint16_le(std::vector<std::byte>& destination, const std::uint16_t value) {
   destination.push_back(static_cast<std::byte>(value & 0xFFU));
@@ -92,4 +92,4 @@ std::vector<std::byte> serialize(const WalRecord& record) {
   return encoded;
 }
 
-}  // namespace nebulakv::wal_format
+} // namespace nebulakv::wal_format

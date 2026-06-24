@@ -15,7 +15,7 @@
 namespace nebulakv {
 
 class MemTable final {
- public:
+public:
   using Snapshot = std::vector<std::pair<std::string, Entry>>;
 
   enum class LookupState : std::uint8_t {
@@ -45,7 +45,7 @@ class MemTable final {
   [[nodiscard]] std::size_t approximate_memory_usage() const;
   [[nodiscard]] std::uint64_t generation() const noexcept;
 
- private:
+private:
   using Storage = std::map<std::string, Entry, std::less<>>;
 
   [[nodiscard]] static std::size_t estimated_entry_size(std::string_view key,
@@ -60,4 +60,4 @@ class MemTable final {
   bool immutable_{false};
 };
 
-}  // namespace nebulakv
+} // namespace nebulakv

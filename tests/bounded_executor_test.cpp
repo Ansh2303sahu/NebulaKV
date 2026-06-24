@@ -58,9 +58,8 @@ TEST(BoundedExecutorTest, ShutdownDrainsAcceptedTasks) {
   std::atomic<int> completed{0};
   BoundedExecutor executor{2U, 16U};
   for (int index = 0; index < 10; ++index) {
-    auto future = executor.try_submit([&completed] {
-      completed.fetch_add(1, std::memory_order_relaxed);
-    });
+    auto future =
+        executor.try_submit([&completed] { completed.fetch_add(1, std::memory_order_relaxed); });
     ASSERT_TRUE(future.has_value());
   }
 
@@ -69,4 +68,4 @@ TEST(BoundedExecutorTest, ShutdownDrainsAcceptedTasks) {
   EXPECT_FALSE(executor.try_submit([] {}).has_value());
 }
 
-}  // namespace
+} // namespace

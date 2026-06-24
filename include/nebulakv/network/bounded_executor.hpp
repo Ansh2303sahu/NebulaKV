@@ -29,7 +29,7 @@ struct ExecutorStatistics {
 };
 
 class BoundedExecutor final {
- public:
+public:
   BoundedExecutor(std::size_t worker_count, std::size_t queue_capacity);
   ~BoundedExecutor();
 
@@ -43,8 +43,7 @@ class BoundedExecutor final {
       -> std::optional<std::future<std::invoke_result_t<Function>>> {
     using Result = std::invoke_result_t<Function>;
 
-    auto task = std::make_shared<std::packaged_task<Result()>>(
-        std::forward<Function>(function));
+    auto task = std::make_shared<std::packaged_task<Result()>>(std::forward<Function>(function));
     std::future<Result> future = task->get_future();
 
     {
@@ -65,7 +64,7 @@ class BoundedExecutor final {
   void shutdown(bool drain = true);
   [[nodiscard]] ExecutorStatistics statistics() const;
 
- private:
+private:
   void worker_loop();
 
   const std::size_t worker_count_{0};
@@ -83,4 +82,4 @@ class BoundedExecutor final {
   std::atomic<std::uint64_t> rejected_tasks_{0};
 };
 
-}  // namespace nebulakv::network
+} // namespace nebulakv::network

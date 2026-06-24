@@ -36,15 +36,15 @@ struct WalScanResult {
 };
 
 class WalReader final {
- public:
+public:
   using RecordVisitor = std::function<void(const WalRecord&)>;
 
   explicit WalReader(std::filesystem::path path);
 
   [[nodiscard]] WalScanResult scan(const RecordVisitor& visitor) const;
 
- private:
+private:
   std::filesystem::path path_;
 };
 
-}  // namespace nebulakv
+} // namespace nebulakv

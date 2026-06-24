@@ -20,25 +20,22 @@ struct GrpcClientOptions {
 };
 
 class GrpcClient final {
- public:
+public:
   explicit GrpcClient(GrpcClientOptions options = {});
 
   [[nodiscard]] grpc::Status put(std::string key, std::string value,
                                  v1::PutResponse& response) const;
-  [[nodiscard]] grpc::Status get(std::string key,
-                                 v1::GetResponse& response) const;
-  [[nodiscard]] grpc::Status remove(std::string key,
-                                    v1::DeleteResponse& response) const;
-  [[nodiscard]] grpc::Status batch_put(
-      std::vector<std::pair<std::string, std::string>> entries,
-      v1::BatchPutResponse& response) const;
+  [[nodiscard]] grpc::Status get(std::string key, v1::GetResponse& response) const;
+  [[nodiscard]] grpc::Status remove(std::string key, v1::DeleteResponse& response) const;
+  [[nodiscard]] grpc::Status batch_put(std::vector<std::pair<std::string, std::string>> entries,
+                                       v1::BatchPutResponse& response) const;
   [[nodiscard]] grpc::Status status(v1::StatusResponse& response) const;
 
- private:
+private:
   void set_deadline(grpc::ClientContext& context) const;
 
   GrpcClientOptions options_;
   std::unique_ptr<v1::KeyValueService::Stub> stub_;
 };
 
-}  // namespace nebulakv::network
+} // namespace nebulakv::network

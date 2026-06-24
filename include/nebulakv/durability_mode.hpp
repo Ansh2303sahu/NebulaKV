@@ -12,15 +12,15 @@ enum class DurabilityMode {
 
 [[nodiscard]] constexpr std::string_view to_string(const DurabilityMode mode) noexcept {
   switch (mode) {
-    case DurabilityMode::Sync:
-      return "sync";
-    case DurabilityMode::Batch:
-      return "batch";
-    case DurabilityMode::None:
-      return "none";
+  case DurabilityMode::Sync:
+    return "sync";
+  case DurabilityMode::Batch:
+    return "batch";
+  case DurabilityMode::None:
+    return "none";
   }
 
   return "unknown";
 }
 
-}  // namespace nebulakv
+} // namespace nebulakv
