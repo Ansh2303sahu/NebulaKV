@@ -55,10 +55,10 @@ jobs:
       - name: Install formatting tools
         run: |
           sudo apt-get update
-          sudo apt-get install --yes ninja-build clang-format
+          sudo apt-get install --yes ninja-build clang-format-18
 
       - name: Configure
-        run: cmake --preset debug -DENABLE_CLANG_TIDY=OFF
+        run: cmake --preset debug -DENABLE_CLANG_TIDY=OFF -DCLANG_FORMAT_EXECUTABLE=/usr/bin/clang-format-18
 
       - name: Check formatting
         run: cmake --build --preset debug --target format-check

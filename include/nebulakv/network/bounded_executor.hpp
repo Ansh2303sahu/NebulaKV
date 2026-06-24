@@ -39,8 +39,8 @@ public:
   BoundedExecutor& operator=(BoundedExecutor&&) = delete;
 
   template <typename Function>
-  [[nodiscard]] auto try_submit(Function&& function)
-      -> std::optional<std::future<std::invoke_result_t<Function>>> {
+  [[nodiscard]] auto
+  try_submit(Function&& function) -> std::optional<std::future<std::invoke_result_t<Function>>> {
     using Result = std::invoke_result_t<Function>;
 
     auto task = std::make_shared<std::packaged_task<Result()>>(std::forward<Function>(function));

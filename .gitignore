@@ -10,3 +10,8 @@ compile_commands.json
 
 *.sst
 *.sst.tmp
+/logs/
+*-backup-*
+*.backup-*
+*.before-*
+.ci-format-backup-*

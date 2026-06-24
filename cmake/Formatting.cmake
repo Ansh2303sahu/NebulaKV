@@ -6,17 +6,19 @@ file(
   "${PROJECT_SOURCE_DIR}/app/*.cpp"
   "${PROJECT_SOURCE_DIR}/benchmarks/*.cpp"
   "${PROJECT_SOURCE_DIR}/client/*.cpp"
+  "${PROJECT_SOURCE_DIR}/cluster/*.cpp"
   "${PROJECT_SOURCE_DIR}/include/*.h"
   "${PROJECT_SOURCE_DIR}/include/*.hpp"
   "${PROJECT_SOURCE_DIR}/src/*.cpp"
   "${PROJECT_SOURCE_DIR}/src/*.hpp"
   "${PROJECT_SOURCE_DIR}/server/*.cpp"
   "${PROJECT_SOURCE_DIR}/tests/*.cpp"
-  "${PROJECT_SOURCE_DIR}/tests/*.hpp")
+  "${PROJECT_SOURCE_DIR}/tests/*.hpp"
+  "${PROJECT_SOURCE_DIR}/tools/*.cpp")
 
 find_program(
   CLANG_FORMAT_EXECUTABLE
-  NAMES clang-format clang-format-20 clang-format-19 clang-format-18 clang-format-17)
+  NAMES clang-format-18 clang-format clang-format-20 clang-format-19 clang-format-17)
 
 if(CLANG_FORMAT_EXECUTABLE)
   add_custom_target(
